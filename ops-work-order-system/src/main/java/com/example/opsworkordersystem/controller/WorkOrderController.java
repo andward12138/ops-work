@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.HashMap;
 
 @Controller
 @RequestMapping("/work-orders")
@@ -121,56 +122,90 @@ public class WorkOrderController {
     // API 创建工单
     @PostMapping("/api")
     @ResponseBody
-    public WorkOrder createWorkOrder(@RequestBody Map<String, Object> payload) {
-        WorkOrder workOrder = new WorkOrder();
-        
-        // 设置基本信息
-        workOrder.setTitle((String) payload.get("title"));
-        workOrder.setDescription((String) payload.get("description"));
-        workOrder.setPriority(Priority.valueOf((String) payload.get("priority")));
-        workOrder.setStatus(Status.valueOf((String) payload.get("status")));
-        workOrder.setDepartment((String) payload.get("department"));
-        
-        // 获取当前登录用户作为创建人
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {
-            String username = auth.getName();
-            Optional<User> currentUser = userRepository.findByUsername(username);
-            if (currentUser.isPresent()) {
-                workOrder.setCreatedBy(currentUser.get());
+    public ResponseEntity<?> createWorkOrder(@RequestBody Map<String, Object> payload) {
+        try {
+            // 记录收到的请求数据
+            System.out.println("接收到创建工单请求，数据: " + payload);
+            
+            // 检查必填字段
+            if (payload.get("title") == null || payload.get("description") == null) {
+                System.out.println("请求缺少必要字段: title=" + payload.get("title") + ", description=" + payload.get("description"));
+                throw new IllegalArgumentException("缺少必要字段: 标题和描述是必填项");
             }
-        }
-        
-        // 设置指派的操作人员（如果提供了）
-        Object assignedToIdObj = payload.get("assignedToId");
-        if (assignedToIdObj != null && !assignedToIdObj.toString().isEmpty()) {
-            try {
-                Integer assignedToId = Integer.valueOf(assignedToIdObj.toString());
-                Optional<User> assignedUser = userRepository.findById(assignedToId);
-                if (assignedUser.isPresent()) {
-                    workOrder.setAssignedTo(assignedUser.get());
+            
+            WorkOrder workOrder = new WorkOrder();
+            
+            // 设置基本信息
+            workOrder.setTitle((String) payload.get("title"));
+            workOrder.setDescription((String) payload.get("description"));
+            
+            // 处理优先级字段
+            String priorityStr = (String) payload.get("priority");
+            System.out.println("Priority字段值: '" + priorityStr + "'");
+            if (priorityStr != null && !priorityStr.isEmpty()) {
+                try {
+                    Priority priority = Priority.valueOf(priorityStr.trim().toUpperCase());
+                    workOrder.setPriority(priority);
+                    System.out.println("成功设置优先级: " + priority);
+                } catch (IllegalArgumentException e) {
+                    System.out.println("无效的优先级值: '" + priorityStr + "'");
+                    throw new IllegalArgumentException("无效的优先级值: " + priorityStr);
                 }
-            } catch (NumberFormatException e) {
-                // 忽略无效的ID格式
+            } else {
+                System.out.println("未提供优先级，使用默认值: MEDIUM");
+                workOrder.setPriority(Priority.MEDIUM); // 默认中等优先级
             }
-        }
-        
-        // 处理自定义截止时间
-        String deadlineStr = (String) payload.get("deadline");
-        if (deadlineStr != null && !deadlineStr.isEmpty()) {
-            try {
-                LocalDateTime deadline = LocalDateTime.parse(deadlineStr.substring(0, 19)); // 去掉毫秒部分
-                workOrder.setDeadline(deadline);
-            } catch (Exception e) {
-                // 如果解析失败，使用基于优先级的默认截止时间
+            
+            workOrder.setStatus(Status.valueOf((String) payload.get("status")));
+            workOrder.setDepartment((String) payload.get("department"));
+            
+            // 获取当前登录用户作为创建人
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {
+                String username = auth.getName();
+                Optional<User> currentUser = userRepository.findByUsername(username);
+                if (currentUser.isPresent()) {
+                    workOrder.setCreatedBy(currentUser.get());
+                }
+            }
+            
+            // 设置指派的操作人员（如果提供了）
+            Object assignedToIdObj = payload.get("assignedToId");
+            if (assignedToIdObj != null && !assignedToIdObj.toString().isEmpty()) {
+                try {
+                    Integer assignedToId = Integer.valueOf(assignedToIdObj.toString());
+                    Optional<User> assignedUser = userRepository.findById(assignedToId);
+                    if (assignedUser.isPresent()) {
+                        workOrder.setAssignedTo(assignedUser.get());
+                    }
+                } catch (NumberFormatException e) {
+                    // 忽略无效的ID格式
+                }
+            }
+            
+            // 处理自定义截止时间
+            String deadlineStr = (String) payload.get("deadline");
+            if (deadlineStr != null && !deadlineStr.isEmpty()) {
+                try {
+                    LocalDateTime deadline = LocalDateTime.parse(deadlineStr.substring(0, 19)); // 去掉毫秒部分
+                    workOrder.setDeadline(deadline);
+                } catch (Exception e) {
+                    // 如果解析失败，使用基于优先级的默认截止时间
+                    workOrder.calculateDeadlineBasedOnPriority();
+                }
+            } else {
+                // 没有自定义截止时间，计算基于优先级的默认截止时间
                 workOrder.calculateDeadlineBasedOnPriority();
             }
-        } else {
-            // 没有自定义截止时间，计算基于优先级的默认截止时间
-            workOrder.calculateDeadlineBasedOnPriority();
+            
+            WorkOrder createdWorkOrder = workOrderService.createWorkOrder(workOrder);
+            return ResponseEntity.ok(createdWorkOrder);
+        } catch (Exception e) {
+            // 记录错误并返回400错误响应
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "创建工单失败: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
-        
-        return workOrderService.createWorkOrder(workOrder);
     }
     
     // API 更新工单状态

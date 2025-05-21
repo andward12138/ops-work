@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf != null} ? ${_csrf.token} : ''"/>
+    <meta name="_csrf_header" th:content="${_csrf != null} ? ${_csrf.headerName} : ''"/>
     <title>工单列表 - 运维工单系统</title>
     <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
     <style>
@@ -112,8 +114,8 @@
             <div class="card-header">
                 <form class="row g-3" method="get" th:action="@{/work-orders}">
                     <div class="col-md-3">
-                        <label for="status" class="form-label">状态</label>
-                        <select id="status" name="status" class="form-select">
+                        <label for="status-filter" class="form-label">状态</label>
+                        <select id="status-filter" name="status" class="form-select">
                             <option value="">全部</option>
                             <option value="PENDING" th:selected="${statusFilter == 'PENDING'}">待处理</option>
                             <option value="APPROVED" th:selected="${statusFilter == 'APPROVED'}">已批准</option>
@@ -124,8 +126,8 @@
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label for="priority" class="form-label">优先级</label>
-                        <select id="priority" name="priority" class="form-select">
+                        <label for="priority-filter" class="form-label">优先级</label>
+                        <select id="priority-filter" name="priority" class="form-select">
                             <option value="">全部</option>
                             <option value="HIGH" th:selected="${priorityFilter == 'HIGH'}">高</option>
                             <option value="MEDIUM" th:selected="${priorityFilter == 'MEDIUM'}">中</option>
@@ -233,8 +235,8 @@
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="priority" class="form-label">优先级</label>
-                                <select class="form-select" id="priority" name="priority" required>
+                                <label for="modal-priority" class="form-label">优先级</label>
+                                <select class="form-select" id="modal-priority" name="priority" required>
                                     <option value="HIGH">高</option>
                                     <option value="MEDIUM" selected>中</option>
                                     <option value="LOW">低</option>
@@ -248,7 +250,7 @@
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="assignedTo" class="form-label">指派给</label>
-                                <select class="form-select" id="assignedTo" name="assignedTo">
+                                <select class="form-select" id="assignedTo" name="assignedToId">
                                     <option value="">-- 请选择 --</option>
                                 </select>
                             </div>
@@ -280,15 +282,49 @@
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
+                // 检查表单元素存在且能正确获取到值
+                const titleElem = document.getElementById('title');
+                const descriptionElem = document.getElementById('description');
+                const priorityElem = document.getElementById('modal-priority');
+                const departmentElem = document.getElementById('department');
+                const assignedToElem = document.getElementById('assignedTo');
+                
+                console.log("表单元素检查:");
+                console.log("title元素:", titleElem, "值:", titleElem ? titleElem.value : "不存在");
+                console.log("description元素:", descriptionElem, "值:", descriptionElem ? descriptionElem.value : "不存在");
+                console.log("priority元素:", priorityElem, "值:", priorityElem ? priorityElem.value : "不存在");
+                console.log("department元素:", departmentElem, "值:", departmentElem ? departmentElem.value : "不存在");
+                console.log("assignedTo元素:", assignedToElem, "值:", assignedToElem ? assignedToElem.value : "不存在");
+                
+                if (!priorityElem) {
+                    alert("找不到优先级选择元素，请联系管理员");
+                    return;
+                }
+                
                 // 获取表单数据
                 const formData = {
-                    title: document.getElementById('title').value,
-                    description: document.getElementById('description').value,
-                    priority: document.getElementById('priority').value,
-                    department: document.getElementById('department').value,
-                    assignedToId: document.getElementById('assignedTo').value || null,
+                    title: titleElem ? titleElem.value : "",
+                    description: descriptionElem ? descriptionElem.value : "",
+                    priority: priorityElem ? priorityElem.value : "MEDIUM", // 默认中等优先级
+                    department: departmentElem ? departmentElem.value : "",
+                    assignedToId: assignedToElem && assignedToElem.value ? assignedToElem.value : null,
                     status: 'PENDING' // 初始状态为待处理
                 };
+                
+                // 确保优先级值是有效的枚举
+                if (formData.priority && !['HIGH', 'MEDIUM', 'LOW'].includes(formData.priority.toUpperCase())) {
+                    alert('无效的优先级值: ' + formData.priority);
+                    console.error('无效的优先级值:', formData.priority);
+                    return;
+                }
+                
+                // 标准化优先级值
+                if (formData.priority) {
+                    formData.priority = formData.priority.toUpperCase();
+                }
+                
+                // 记录发送的数据，便于调试
+                console.log('发送的表单数据:', formData);
                 
                 // 处理截止时间
                 const deadlineInput = document.getElementById('deadline').value;
@@ -301,6 +337,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]')?.content || ''
                     },
                     body: JSON.stringify(formData)
                 })
@@ -308,7 +345,9 @@
                     if (response.ok) {
                         return response.json();
                     }
-                    throw new Error('提交失败');
+                    return response.json().then(data => {
+                        throw new Error(data.error || '提交失败，请检查表单数据');
+                    });
                 })
                 .then(data => {
                     // 关闭模态框并刷新页面
@@ -317,6 +356,7 @@
                     window.location.reload();
                 })
                 .catch(error => {
+                    console.error('创建工单错误:', error);
                     alert('创建工单失败: ' + error.message);
                 });
             });

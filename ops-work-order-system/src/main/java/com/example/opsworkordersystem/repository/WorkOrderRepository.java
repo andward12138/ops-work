@@ -24,4 +24,8 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
     
     @Query("SELECT w FROM WorkOrder w LEFT JOIN FETCH w.createdBy LEFT JOIN FETCH w.assignedTo WHERE w.id = ?1")
     Optional<WorkOrder> findByIdWithUsers(Long id);
+    
+    // 用于在保存后直接返回带有预加载关联的工单
+    @Query("SELECT w FROM WorkOrder w LEFT JOIN FETCH w.createdBy LEFT JOIN FETCH w.assignedTo WHERE w.id = ?1")
+    Optional<WorkOrder> findSavedWorkOrderById(Long id);
 } 

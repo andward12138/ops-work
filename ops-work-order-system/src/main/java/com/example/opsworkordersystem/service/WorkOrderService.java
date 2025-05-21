@@ -7,6 +7,7 @@ import com.example.opsworkordersystem.repository.UserRepository;
 import com.example.opsworkordersystem.repository.WorkOrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ public class WorkOrderService {
     private UserRepository userRepository;
 
     // 创建工单
+    @Transactional
     public WorkOrder createWorkOrder(WorkOrder workOrder) {
         // 设置创建时间和更新时间
         if (workOrder.getCreatedAt() == null) {
@@ -46,7 +48,31 @@ public class WorkOrderService {
             workOrder.checkIfOverdue();
         }
         
-        return workOrderRepository.save(workOrder);
+        // 确保createdBy和assignedTo关系在事务内加载完全
+        if (workOrder.getCreatedBy() != null) {
+            Integer createdById = workOrder.getCreatedBy().getId();
+            if (createdById != null) {
+                User createdBy = userRepository.findById(createdById)
+                    .orElse(workOrder.getCreatedBy());
+                workOrder.setCreatedBy(createdBy);
+            }
+        }
+        
+        if (workOrder.getAssignedTo() != null) {
+            Integer assignedToId = workOrder.getAssignedTo().getId();
+            if (assignedToId != null) {
+                User assignedTo = userRepository.findById(assignedToId)
+                    .orElse(workOrder.getAssignedTo());
+                workOrder.setAssignedTo(assignedTo);
+            }
+        }
+        
+        // 保存工单
+        WorkOrder savedWorkOrder = workOrderRepository.save(workOrder);
+        
+        // 使用预加载的查询方法获取完整的工单（包括关联关系）
+        return workOrderRepository.findSavedWorkOrderById(savedWorkOrder.getId().longValue())
+                .orElse(savedWorkOrder);
     }
 
     // 根据状态查询工单
