@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工单详情 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <style>
+        body {
+            padding-top: 20px;
+        }
+        .container {
+            padding: 20px;
+        }
+        .card {
+            margin-bottom: 20px;
+        }
+        .priority-high {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .priority-medium {
+            color: #fd7e14;
+        }
+        .priority-low {
+            color: #198754;
+        }
+        .badge-status {
+            font-size: 1rem;
+            padding: 0.35rem 0.65rem;
+        }
+        .timeline {
+            border-left: 2px solid #dee2e6;
+            padding-left: 20px;
+            margin-left: 20px;
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 25px;
+        }
+        .timeline-item:before {
+            content: "";
+            position: absolute;
+            left: -28px;
+            top: 0;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background-color: #0d6efd;
+        }
+        .timeline-content {
+            border-radius: 4px;
+            padding: 15px;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>工单详情</h2>
+            <div>
+                <a th:href="@{/work-orders}" class="btn btn-secondary">返回列表</a>
+                <button class="btn btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#updateStatusModal">
+                    更新状态
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        工单 #<span th:text="${workOrder.id}">1</span> - 
+                        <span th:text="${workOrder.title}">工单标题</span>
+                    </h5>
+                    <div>
+                        <span class="badge rounded-pill badge-status" 
+                              th:classappend="${workOrder.status == T(com.example.opsworkordersystem.entity.Status).PENDING ? 'bg-info' : 
+                                           (workOrder.status == T(com.example.opsworkordersystem.entity.Status).APPROVED ? 'bg-success' : 
+                                           (workOrder.status == T(com.example.opsworkordersystem.entity.Status).IN_PROGRESS ? 'bg-warning' : 
+                                           (workOrder.status == T(com.example.opsworkordersystem.entity.Status).COMPLETED ? 'bg-success' : 
+                                           (workOrder.status == T(com.example.opsworkordersystem.entity.Status).OVERDUE ? 'bg-danger' : 'bg-danger'))))}"
+                              th:text="${workOrder.status == T(com.example.opsworkordersystem.entity.Status).PENDING ? '待处理' : 
+                                     (workOrder.status == T(com.example.opsworkordersystem.entity.Status).APPROVED ? '已批准' : 
+                                     (workOrder.status == T(com.example.opsworkordersystem.entity.Status).IN_PROGRESS ? '处理中' : 
+                                     (workOrder.status == T(com.example.opsworkordersystem.entity.Status).COMPLETED ? '已完成' : 
+                                     (workOrder.status == T(com.example.opsworkordersystem.entity.Status).OVERDUE ? '已逾期' : '已拒绝'))))}">
+                            状态
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-bordered">
+                            <tr>
+                                <th style="width: 30%">创建人</th>
+                                <td th:text="${workOrder.createdBy != null ? workOrder.createdBy.username : '系统'}">创建人</td>
+                            </tr>
+                            <tr>
+                                <th>指派给</th>
+                                <td th:text="${workOrder.assignedTo != null ? workOrder.assignedTo.username : '未指派'}">指派给</td>
+                            </tr>
+                            <tr>
+                                <th>部门</th>
+                                <td th:text="${workOrder.department != null ? workOrder.department : '未设置'}">部门</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-bordered">
+                            <tr>
+                                <th style="width: 30%">优先级</th>
+                                <td>
+                                    <span th:classappend="${workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH ? 'priority-high' : 
+                                                       (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM ? 'priority-medium' : 'priority-low')}"
+                                          th:text="${workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH ? '高' : 
+                                                  (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM ? '中' : '低')}">
+                                        优先级
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>创建时间</th>
+                                <td th:text="${#temporals.format(workOrder.createdAt, 'yyyy-MM-dd HH:mm:ss')}">创建时间</td>
+                            </tr>
+                            <tr>
+                                <th>更新时间</th>
+                                <td th:text="${workOrder.updatedAt != null ? #temporals.format(workOrder.updatedAt, 'yyyy-MM-dd HH:mm:ss') : '无更新'}">更新时间</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <h5 class="mt-4">工单描述</h5>
+                <div class="p-3 bg-light rounded">
+                    <p class="mb-0" th:text="${workOrder.description}">工单描述内容...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 审批记录卡片 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">审批记录</h5>
+            </div>
+            <div class="card-body">
+                <div class="timeline" th:if="${!approvalRecords.empty}">
+                    <div class="timeline-item" th:each="record : ${approvalRecords}">
+                        <div class="timeline-content">
+                            <div class="d-flex justify-content-between">
+                                <h6 th:text="${record.approver.username}">审批人</h6>
+                                <small th:text="${#temporals.format(record.createdAt, 'yyyy-MM-dd HH:mm:ss')}">时间</small>
+                            </div>
+                            <p>
+                                审批结果：
+                                <span th:class="${record.status == T(com.example.opsworkordersystem.entity.ApprovalStatus).APPROVED ? 'text-success' : 
+                                             (record.status == T(com.example.opsworkordersystem.entity.ApprovalStatus).REJECTED ? 'text-danger' : 'text-warning')}"
+                                      th:text="${record.status == T(com.example.opsworkordersystem.entity.ApprovalStatus).APPROVED ? '通过' : 
+                                             (record.status == T(com.example.opsworkordersystem.entity.ApprovalStatus).REJECTED ? '拒绝' : '待定')}">
+                                    通过
+                                </span>
+                            </p>
+                            <p th:text="${record.comments}">审批意见内容...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center" th:if="${approvalRecords.empty}">
+                    <p class="text-muted">暂无审批记录</p>
+                </div>
+                
+                <!-- 添加审批按钮 -->
+                <div class="mt-3 text-end" sec:authorize="hasAnyRole('MANAGER', 'ADMIN')">
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#approveModal">
+                        审批工单
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作记录卡片 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">操作记录</h5>
+            </div>
+            <div class="card-body">
+                <div class="timeline" th:if="${!operationRecords.empty}">
+                    <div class="timeline-item" th:each="record : ${operationRecords}">
+                        <div class="timeline-content">
+                            <div class="d-flex justify-content-between">
+                                <h6 th:text="${record.operator.username}">操作人</h6>
+                                <small th:text="${#temporals.format(record.createdAt, 'yyyy-MM-dd HH:mm:ss')}">时间</small>
+                            </div>
+                            <p>
+                                操作类型：
+                                <span th:class="${record.action == T(com.example.opsworkordersystem.entity.ActionType).EXECUTION ? 'text-primary' : 
+                                             (record.action == T(com.example.opsworkordersystem.entity.ActionType).COMPLETION ? 'text-success' : 
+                                             (record.action == T(com.example.opsworkordersystem.entity.ActionType).HANDOVER ? 'text-info' : 'text-warning'))}"
+                                      th:text="${record.action == T(com.example.opsworkordersystem.entity.ActionType).EXECUTION ? '执行' : 
+                                             (record.action == T(com.example.opsworkordersystem.entity.ActionType).COMPLETION ? '完成' : 
+                                             (record.action == T(com.example.opsworkordersystem.entity.ActionType).HANDOVER ? '交接' : '其他'))}">
+                                    执行
+                                </span>
+                            </p>
+                            <p th:text="${record.comments}">操作内容描述...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center" th:if="${operationRecords.empty}">
+                    <p class="text-muted">暂无操作记录</p>
+                </div>
+                
+                <!-- 添加操作记录按钮 -->
+                <div class="mt-3 text-end" sec:authorize="hasAnyRole('OPERATOR', 'ADMIN')">
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#operationModal">
+                        添加操作记录
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 更新状态模态框 -->
+    <div class="modal fade" id="updateStatusModal" tabindex="-1" aria-labelledby="updateStatusModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="updateStatusForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="updateStatusModalLabel">更新工单状态</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="status" class="form-label">选择状态</label>
+                            <select class="form-select" id="status" name="status" required>
+                                <option value="PENDING">待处理</option>
+                                <option value="APPROVED">已批准</option>
+                                <option value="IN_PROGRESS">处理中</option>
+                                <option value="COMPLETED">已完成</option>
+                                <option value="REJECTED">已拒绝</option>
+                                <option value="OVERDUE">已逾期</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 审批模态框 -->
+    <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="approveForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="approveModalLabel">审批工单</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="approvalStatus" class="form-label">审批结果</label>
+                            <select class="form-select" id="approvalStatus" name="status" required>
+                                <option value="APPROVED">通过</option>
+                                <option value="REJECTED">拒绝</option>
+                                <option value="PENDING">待定</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="approvalComments" class="form-label">审批意见</label>
+                            <textarea class="form-control" id="approvalComments" name="comments" rows="3" required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary">提交</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作记录模态框 -->
+    <div class="modal fade" id="operationModal" tabindex="-1" aria-labelledby="operationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="operationForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="operationModalLabel">添加操作记录</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="actionType" class="form-label">操作类型</label>
+                            <select class="form-select" id="actionType" name="action" required>
+                                <option value="EXECUTION">执行</option>
+                                <option value="COMPLETION">完成</option>
+                                <option value="HANDOVER">交接</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="operationComments" class="form-label">操作描述</label>
+                            <textarea class="form-control" id="operationComments" name="comments" rows="3" required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary">提交</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script th:inline="javascript">
+        // 获取工单ID
+        const workOrderId = [[${workOrder.id}]];
+        
+        // 更新状态表单提交
+        document.getElementById('updateStatusForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const status = document.getElementById('status').value;
+            
+            fetch(`/work-orders/api/${workOrderId}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ status: status })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('更新失败');
+            })
+            .then(() => {
+                window.location.reload();
+            })
+            .catch(error => {
+                alert('更新工单状态失败: ' + error.message);
+            });
+        });
+        
+        // 审批表单提交
+        document.getElementById('approveForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const status = document.getElementById('approvalStatus').value;
+            const comments = document.getElementById('approvalComments').value;
+            
+            fetch(`/approval-records/api`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    workOrderId: workOrderId,
+                    status: status,
+                    comments: comments
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('提交失败');
+            })
+            .then(() => {
+                window.location.reload();
+            })
+            .catch(error => {
+                alert('提交审批失败: ' + error.message);
+            });
+        });
+        
+        // 操作记录表单提交
+        document.getElementById('operationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const actionType = document.getElementById('actionType').value;
+            const comments = document.getElementById('operationComments').value;
+            
+            fetch(`/operation-records/api`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    workOrderId: workOrderId,
+                    action: actionType,
+                    comments: comments
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('提交失败');
+            })
+            .then(() => {
+                window.location.reload();
+            })
+            .catch(error => {
+                alert('提交操作记录失败: ' + error.message);
+            });
+        });
+    </script>
+</body>
+</html> 

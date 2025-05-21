@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <style>
+        body {
+            padding-top: 20px;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .actions-column {
+            width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">工单管理</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link active" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2>用户管理</h2>
+            </div>
+            <div class="col-md-4 text-end">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                    添加用户
+                </button>
+            </div>
+        </div>
+
+        <!-- 提示信息 -->
+        <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <span th:text="${success}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <span th:text="${error}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
+        <!-- 用户表格 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>用户名</th>
+                                <th>邮箱</th>
+                                <th>角色</th>
+                                <th class="actions-column">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:if="${users.empty}">
+                                <td colspan="5" class="text-center">暂无用户</td>
+                            </tr>
+                            <tr th:each="user : ${users.content}">
+                                <td th:text="${user.id}"></td>
+                                <td th:text="${user.username}"></td>
+                                <td th:text="${user.email}"></td>
+                                <td th:text="${user.role}"></td>
+                                <td>
+                                    <a th:href="@{'/admin/users/' + ${user.id}}" class="btn btn-sm btn-info">编辑</a>
+                                    <button type="button" class="btn btn-sm btn-danger" 
+                                            th:data-username="${user.username}"
+                                            th:data-id="${user.id}"
+                                            onclick="prepareDelete(this.getAttribute('data-id'), this.getAttribute('data-username'))"
+                                            data-bs-toggle="modal" data-bs-target="#deleteUserModal">
+                                        删除
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分页 -->
+        <div th:if="${totalPages > 0}" class="d-flex justify-content-center">
+            <nav>
+                <ul class="pagination">
+                    <li th:class="${currentPage == 0 ? 'page-item disabled' : 'page-item'}">
+                        <a class="page-link" th:href="@{/admin/users(page=${currentPage - 1})}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}" 
+                        th:class="${currentPage == i ? 'page-item active' : 'page-item'}">
+                        <a class="page-link" th:href="@{/admin/users(page=${i})}" th:text="${i + 1}"></a>
+                    </li>
+                    <li th:class="${currentPage == totalPages - 1 ? 'page-item disabled' : 'page-item'}">
+                        <a class="page-link" th:href="@{/admin/users(page=${currentPage + 1})}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <!-- 添加用户模态框 -->
+    <div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createUserModalLabel">添加用户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form th:action="@{/admin/users}" method="post" th:object="${newUser}">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">用户名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="username" th:field="*{username}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">密码 <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="password" th:field="*{password}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">邮箱</label>
+                            <input type="email" class="form-control" id="email" th:field="*{email}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">电话</label>
+                            <input type="text" class="form-control" id="phone" th:field="*{phone}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="role" class="form-label">角色 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="role" th:field="*{role}" required>
+                                <option value="">-- 选择角色 --</option>
+                                <option th:each="role : ${roles}" th:value="${role}" th:text="${role}"></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除用户确认模态框 -->
+    <div class="modal fade" id="deleteUserModal" tabindex="-1" aria-labelledby="deleteUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteUserModalLabel">确认删除</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    确定要删除用户 <span id="deleteUserName" class="fw-bold"></span> 吗？
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <form id="deleteUserForm" method="post">
+                        <button type="submit" class="btn btn-danger">删除</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        function prepareDelete(userId, username) {
+            document.getElementById('deleteUserName').textContent = username;
+            document.getElementById('deleteUserForm').action = '/admin/users/' + userId + '/delete';
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>控制面板 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <style>
+        body {
+            padding-top: 20px;
+        }
+        .dashboard-container {
+            padding: 20px;
+        }
+        .card {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container dashboard-container">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h2>控制面板</h2>
+                <p>欢迎使用运维工单系统</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card text-white bg-primary">
+                    <div class="card-body">
+                        <h5 class="card-title">待处理工单</h5>
+                        <p class="card-text display-4" th:text="${pendingCount}">0</p>
+                        <a th:href="@{/work-orders?status=PENDING}" class="text-white">查看详情 &raquo;</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card text-white bg-success">
+                    <div class="card-body">
+                        <h5 class="card-title">已完成工单</h5>
+                        <p class="card-text display-4" th:text="${completedCount}">0</p>
+                        <a th:href="@{/work-orders?status=COMPLETED}" class="text-white">查看详情 &raquo;</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card text-white bg-warning">
+                    <div class="card-body">
+                        <h5 class="card-title">处理中工单</h5>
+                        <p class="card-text display-4" th:text="${inProgressCount}">0</p>
+                        <a th:href="@{/work-orders?status=IN_PROGRESS}" class="text-white">查看详情 &raquo;</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card text-white bg-danger">
+                    <div class="card-body">
+                        <h5 class="card-title">已拒绝工单</h5>
+                        <p class="card-text display-4" th:text="${rejectedCount}">0</p>
+                        <a th:href="@{/work-orders?status=REJECTED}" class="text-white">查看详情 &raquo;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>我的待处理工单</div>
+                        <a th:href="@{/work-orders}" class="btn btn-sm btn-primary">查看全部</a>
+                    </div>
+                    <div class="card-body">
+                        <div th:if="${myPendingWorkOrders != null && !myPendingWorkOrders.empty}">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>工单号</th>
+                                        <th>标题</th>
+                                        <th>优先级</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="workOrder : ${myPendingWorkOrders}">
+                                        <td th:text="${workOrder.id}">1</td>
+                                        <td th:text="${workOrder.title}">标题</td>
+                                        <td>
+                                            <span th:classappend="${workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH ? 'text-danger' : 
+                                                             (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM ? 'text-warning' : 'text-success')}"
+                                                th:text="${workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH ? '高' : 
+                                                        (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM ? '中' : '低')}">
+                                                优先级
+                                            </span>
+                                        </td>
+                                        <td th:text="${#temporals.format(workOrder.createdAt, 'yyyy-MM-dd HH:mm')}">创建时间</td>
+                                        <td>
+                                            <a th:href="@{/work-orders/{id}(id=${workOrder.id})}" class="btn btn-sm btn-info">详情</a>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-center text-muted" th:if="${myPendingWorkOrders == null || myPendingWorkOrders.empty}">暂无待处理工单</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>最近活动</div>
+                        <a th:href="@{/work-orders}" class="btn btn-sm btn-primary">查看全部</a>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-center text-muted">暂无活动记录</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+</body>
+</html> 

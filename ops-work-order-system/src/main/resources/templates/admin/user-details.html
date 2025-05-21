@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户详情 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <style>
+        body {
+            padding-top: 20px;
+        }
+        .container {
+            max-width: 900px;
+        }
+        .field-error {
+            color: #dc3545;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">工单管理</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link active" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="@{/admin/users}">用户管理</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">用户详情</li>
+                    </ol>
+                </nav>
+                <h2>用户详情</h2>
+            </div>
+        </div>
+
+        <!-- 提示信息 -->
+        <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <span th:text="${success}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <span th:text="${error}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
+        <!-- 用户详情表单 -->
+        <div class="card">
+            <div class="card-body">
+                <form th:action="@{'/admin/users/' + ${user.id}}" method="post" th:object="${user}">
+                    <div class="row mb-3">
+                        <label for="id" class="col-md-3 col-form-label">用户ID</label>
+                        <div class="col-md-9">
+                            <input type="text" class="form-control-plaintext" id="id" th:field="*{id}" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <label for="username" class="col-md-3 col-form-label">用户名 <span class="text-danger">*</span></label>
+                        <div class="col-md-9">
+                            <input type="text" class="form-control" id="username" th:field="*{username}" required>
+                            <div class="field-error" th:if="${#fields.hasErrors('username')}" th:errors="*{username}"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <label for="password" class="col-md-3 col-form-label">密码</label>
+                        <div class="col-md-9">
+                            <input type="password" class="form-control" id="password" th:field="*{password}" placeholder="留空表示不修改密码">
+                            <div class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <label for="email" class="col-md-3 col-form-label">邮箱</label>
+                        <div class="col-md-9">
+                            <input type="email" class="form-control" id="email" th:field="*{email}">
+                            <div class="field-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <label for="phone" class="col-md-3 col-form-label">电话</label>
+                        <div class="col-md-9">
+                            <input type="text" class="form-control" id="phone" th:field="*{phone}">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <label for="role" class="col-md-3 col-form-label">角色 <span class="text-danger">*</span></label>
+                        <div class="col-md-9">
+                            <select class="form-select" id="role" th:field="*{role}" required>
+                                <option th:each="roleOption : ${roles}" th:value="${roleOption}" th:text="${roleOption}" th:selected="${roleOption == user.role}"></option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-9 offset-md-3">
+                            <a th:href="@{/admin/users}" class="btn btn-secondary me-2">返回列表</a>
+                            <button type="submit" class="btn btn-primary">保存更改</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+</body>
+</html> 
