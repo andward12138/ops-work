@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf != null} ? ${_csrf.token} : ''"/>
+    <meta name="_csrf_header" th:content="${_csrf != null} ? ${_csrf.headerName} : ''"/>
     <title>工单详情 - 运维工单系统</title>
     <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
     <style>
@@ -384,10 +386,15 @@
             const status = document.getElementById('approvalStatus').value;
             const comments = document.getElementById('approvalComments').value;
             
+            // 获取CSRF令牌
+            const csrfToken = document.querySelector('meta[name="_csrf"]');
+            const csrfValue = csrfToken ? csrfToken.content : '';
+            
             fetch(`/approval-records/api`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfValue
                 },
                 body: JSON.stringify({
                     workOrderId: workOrderId,
@@ -399,12 +406,15 @@
                 if (response.ok) {
                     return response.json();
                 }
-                throw new Error('提交失败');
+                return response.json().then(data => {
+                    throw new Error(data.error || '提交失败，请检查表单数据');
+                });
             })
             .then(() => {
                 window.location.reload();
             })
             .catch(error => {
+                console.error('审批提交错误:', error);
                 alert('提交审批失败: ' + error.message);
             });
         });
