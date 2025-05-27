@@ -50,18 +50,18 @@ public class WorkOrderController {
         
         List<WorkOrder> workOrders;
         
-        // 根据状态过滤
+        // 根据状态过滤工单，使用预加载查询
         if (status != null && !status.isEmpty()) {
             try {
                 Status statusEnum = Status.valueOf(status);
-                workOrders = workOrderService.getWorkOrdersByStatus(statusEnum);
+                workOrders = workOrderService.getWorkOrdersByStatus(statusEnum); // 已使用预加载
             } catch (IllegalArgumentException e) {
                 // 如果状态参数不合法，则返回所有工单
-                workOrders = workOrderService.getAllWorkOrders();
+                workOrders = workOrderService.getAllWorkOrders(); // 已使用预加载
             }
         } else {
             // 如果没有状态参数，则返回所有工单
-            workOrders = workOrderService.getAllWorkOrders();
+            workOrders = workOrderService.getAllWorkOrders(); // 已使用预加载
         }
         
         // 根据优先级过滤 (如果状态已经过滤过了，就在过滤结果上继续过滤)
