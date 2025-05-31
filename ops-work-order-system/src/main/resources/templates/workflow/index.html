@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作流管理 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        .workflow-card { margin-bottom: 20px; }
+        .step-badge { font-size: 0.8em; margin: 2px; }
+        .pending-task { border-left: 4px solid #ffc107; }
+        .overdue-task { border-left: 4px solid #dc3545; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2>工作流管理</h2>
+                <p class="text-muted">管理多层级审批工作流和处理审批任务</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-success" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-warning">
+                    <div class="card-body">
+                        <h6 class="card-title">待处理审批</h6>
+                        <p class="card-text display-6" id="pendingApprovals">0</p>
+                        <a href="/workflow/my-approvals" class="text-white">查看详情 &raquo;</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-danger">
+                    <div class="card-body">
+                        <h6 class="card-title">超时任务</h6>
+                        <p class="card-text display-6" id="overdueTasks">0</p>
+                        <a href="/workflow/my-approvals?filter=overdue" class="text-white">查看详情 &raquo;</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-success">
+                    <div class="card-body">
+                        <h6 class="card-title">已处理</h6>
+                        <p class="card-text display-6" id="completedTasks">0</p>
+                        <a href="/workflow/approval-history" class="text-white">查看详情 &raquo;</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-info">
+                    <div class="card-body">
+                        <h6 class="card-title">活跃工作流</h6>
+                        <p class="card-text display-6" id="activeWorkflows">0</p>
+                        <a href="/workflow/templates" class="text-white">查看详情 &raquo;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 快速操作 -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">快速操作</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <a href="/workflow/my-approvals" class="btn btn-outline-primary w-100">
+                                    <i class="bi bi-check-circle"></i><br>
+                                    我的审批任务
+                                </a>
+                            </div>
+                            <div class="col-md-3 mb-3" sec:authorize="hasRole('ADMIN') or hasRole('MANAGER')">
+                                <a href="/workflow/templates" class="btn btn-outline-success w-100">
+                                    <i class="bi bi-diagram-3"></i><br>
+                                    工作流模板
+                                </a>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <a href="/workflow/approval-history" class="btn btn-outline-info w-100">
+                                    <i class="bi bi-clock-history"></i><br>
+                                    审批历史
+                                </a>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <a href="/work-orders" class="btn btn-outline-secondary w-100">
+                                    <i class="bi bi-list-task"></i><br>
+                                    工单管理
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 待处理任务列表 -->
+        <div class="card">
+            <div class="card-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="mb-0">我的待处理任务</h5>
+                    </div>
+                    <div class="col-auto">
+                        <a href="/workflow/my-approvals" class="btn btn-sm btn-primary">查看全部</a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="pendingTasksList">
+                    <!-- 待处理任务列表将在这里动态加载 -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载任务数据...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        // 获取当前用户ID（这里假设通过某种方式获取）
+        let currentUserId = null;
+        
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCurrentUser();
+            loadStatistics();
+            loadPendingTasks();
+        });
+
+        // 获取当前用户信息
+        function loadCurrentUser() {
+            // 这里需要一个API来获取当前用户信息
+            // 暂时使用模拟数据
+            currentUserId = 1; // 模拟用户ID
+        }
+
+        // 加载统计信息
+        function loadStatistics() {
+            if (!currentUserId) return;
+            
+            // 获取用户待处理审批
+            fetch(`/api/workflow-steps/pending/user/${currentUserId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('pendingApprovals').textContent = data.length;
+                    
+                    // 计算超时任务
+                    const now = new Date();
+                    const overdue = data.filter(task => 
+                        task.deadline && new Date(task.deadline) < now
+                    ).length;
+                    document.getElementById('overdueTasks').textContent = overdue;
+                })
+                .catch(error => {
+                    console.error('Error loading pending approvals:', error);
+                    document.getElementById('pendingApprovals').textContent = '错误';
+                    document.getElementById('overdueTasks').textContent = '错误';
+                });
+
+            // 获取工作流模板数量
+            fetch('/api/workflow-templates/active')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('activeWorkflows').textContent = data.length;
+                })
+                .catch(error => {
+                    console.error('Error loading templates:', error);
+                    document.getElementById('activeWorkflows').textContent = '错误';
+                });
+
+            // 模拟已处理任务数量
+            document.getElementById('completedTasks').textContent = '15';
+        }
+
+        // 加载待处理任务
+        function loadPendingTasks() {
+            if (!currentUserId) return;
+            
+            fetch(`/api/workflow-steps/pending/user/${currentUserId}`)
+                .then(response => response.json())
+                .then(data => {
+                    renderPendingTasks(data.slice(0, 5)); // 只显示前5个
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('pendingTasksList').innerHTML = 
+                        '<div class="alert alert-danger">加载任务数据失败</div>';
+                });
+        }
+
+        // 渲染待处理任务
+        function renderPendingTasks(tasks) {
+            const container = document.getElementById('pendingTasksList');
+            if (!tasks || tasks.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">暂无待处理任务</div>';
+                return;
+            }
+
+            let html = '';
+            tasks.forEach(task => {
+                const isOverdue = task.deadline && new Date(task.deadline) < new Date();
+                const cardClass = isOverdue ? 'overdue-task' : 'pending-task';
+                
+                html += `
+                    <div class="card workflow-card ${cardClass}">
+                        <div class="card-body py-3">
+                            <div class="row align-items-center">
+                                <div class="col-md-4">
+                                    <h6 class="card-title mb-1">工单 #${task.workOrder.id}</h6>
+                                    <p class="text-muted mb-0">${task.workOrder.title}</p>
+                                </div>
+                                <div class="col-md-2">
+                                    <span class="step-badge badge bg-primary">${task.stepName}</span>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">
+                                        ${getStepTypeName(task.stepType)}
+                                    </small>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">
+                                        ${task.deadline ? 
+                                            `截止: ${new Date(task.deadline).toLocaleString()}` : 
+                                            '无截止时间'}
+                                    </small>
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <a href="/work-orders/${task.workOrder.id}" class="btn btn-sm btn-primary">
+                                        处理
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // 获取步骤类型中文名
+        function getStepTypeName(type) {
+            const types = {
+                'DEPARTMENT_REVIEW': '部门初审',
+                'MANAGER_APPROVAL': '经理审批',
+                'DIRECTOR_APPROVAL': '主管审批',
+                'EXECUTION': '执行操作',
+                'VERIFICATION': '验证确认',
+                'COMPLETION': '完成确认'
+            };
+            return types[type] || type;
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadStatistics();
+            loadPendingTasks();
+        }
+    </script>
+</body>
+</html> 

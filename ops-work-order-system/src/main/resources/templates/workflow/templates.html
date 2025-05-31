@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作流模板管理 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        .template-card { margin-bottom: 15px; }
+        .step-badge { font-size: 0.7em; margin: 1px; }
+        .step-container { margin-left: 20px; }
+        .parallel-group { border-left: 3px solid #007bff; padding-left: 10px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="@{/workflow}">工作流管理</a></li>
+                        <li class="breadcrumb-item active">工作流模板</li>
+                    </ol>
+                </nav>
+                <h2>工作流模板管理</h2>
+                <p class="text-muted">配置多层级审批工作流模板，支持并行/串行审批和自动流转</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTemplateModal">
+                    <i class="bi bi-plus-lg"></i> 创建模板
+                </button>
+                <button class="btn btn-success" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+        </div>
+
+        <!-- 模板列表 -->
+        <div class="card">
+            <div class="card-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="mb-0">工作流模板列表</h5>
+                    </div>
+                    <div class="col-auto">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showInactiveTemplates" onchange="toggleInactiveTemplates()">
+                            <label class="form-check-label" for="showInactiveTemplates">
+                                显示已停用模板
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="templatesList">
+                    <!-- 模板列表将在这里动态加载 -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载模板数据...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建模板模态框 -->
+    <div class="modal fade" id="createTemplateModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">创建工作流模板</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createTemplateForm">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">模板名称 *</label>
+                                <input type="text" class="form-control" name="templateName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">适用工单类型</label>
+                                <select class="form-select" name="workOrderType">
+                                    <option value="">通用</option>
+                                    <option value="OPERATION">运维工单</option>
+                                    <option value="EMERGENCY">紧急变更</option>
+                                    <option value="MAINTENANCE">例行维护</option>
+                                    <option value="INCIDENT">故障处理</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">模板描述</label>
+                            <textarea class="form-control" name="description" rows="3"></textarea>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6>审批步骤配置</h6>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addStep()">
+                                <i class="bi bi-plus"></i> 添加步骤
+                            </button>
+                        </div>
+                        <div id="stepsContainer">
+                            <!-- 步骤将在这里动态添加 -->
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="createTemplate()">创建模板</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        let templates = [];
+        let stepCounter = 0;
+        
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTemplates();
+        });
+
+        // 加载模板列表
+        function loadTemplates() {
+            fetch('/api/workflow-templates')
+                .then(response => response.json())
+                .then(data => {
+                    templates = data;
+                    renderTemplates(templates);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('templatesList').innerHTML = 
+                        '<div class="alert alert-danger">加载模板数据失败</div>';
+                });
+        }
+
+        // 渲染模板列表
+        function renderTemplates(templateList) {
+            const container = document.getElementById('templatesList');
+            const showInactive = document.getElementById('showInactiveTemplates').checked;
+            
+            const filteredTemplates = showInactive ? templateList : templateList.filter(t => t.isActive);
+            
+            if (!filteredTemplates || filteredTemplates.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">暂无模板数据</div>';
+                return;
+            }
+
+            let html = '';
+            filteredTemplates.forEach(template => {
+                const statusBadge = template.isActive ? 
+                    '<span class="badge bg-success">启用</span>' : 
+                    '<span class="badge bg-secondary">停用</span>';
+                
+                html += `
+                    <div class="card template-card">
+                        <div class="card-body">
+                            <div class="row align-items-start">
+                                <div class="col-md-4">
+                                    <h6 class="card-title mb-1">
+                                        ${template.templateName} ${statusBadge}
+                                    </h6>
+                                    <p class="text-muted mb-1">${template.description || '无描述'}</p>
+                                    <small class="text-muted">
+                                        工单类型: ${template.workOrderType || '通用'}
+                                    </small>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="step-container">
+                                        <small class="text-muted">审批流程:</small>
+                                        ${renderStepsPreview(template.steps || [])}
+                                    </div>
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <button class="btn btn-sm btn-outline-info" onclick="viewTemplate(${template.id})">
+                                        <i class="bi bi-eye"></i> 详情
+                                    </button>
+                                    <br>
+                                    <button class="btn btn-sm btn-outline-primary mt-1" onclick="editTemplate(${template.id})">
+                                        <i class="bi bi-pencil"></i> 编辑
+                                    </button>
+                                    <br>
+                                    <button class="btn btn-sm ${template.isActive ? 'btn-outline-warning' : 'btn-outline-success'} mt-1" 
+                                            onclick="toggleTemplate(${template.id}, ${template.isActive})">
+                                        <i class="bi bi-${template.isActive ? 'pause' : 'play'}"></i> 
+                                        ${template.isActive ? '停用' : '启用'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // 渲染步骤预览
+        function renderStepsPreview(steps) {
+            if (!steps || steps.length === 0) {
+                return '<span class="text-muted">无步骤</span>';
+            }
+
+            let html = '<div class="d-flex flex-wrap">';
+            steps.forEach((step, index) => {
+                const badgeClass = step.isParallel ? 'bg-info' : 'bg-primary';
+                html += `
+                    <span class="step-badge badge ${badgeClass}" title="${getStepTypeName(step.stepType)}">
+                        ${index + 1}. ${step.stepName}
+                        ${step.timeLimitHours ? `(${step.timeLimitHours}h)` : ''}
+                    </span>
+                `;
+                if (index < steps.length - 1) {
+                    html += '<i class="bi bi-arrow-right mx-1"></i>';
+                }
+            });
+            html += '</div>';
+            return html;
+        }
+
+        // 获取步骤类型中文名
+        function getStepTypeName(type) {
+            const types = {
+                'DEPARTMENT_REVIEW': '部门初审',
+                'MANAGER_APPROVAL': '经理审批',
+                'DIRECTOR_APPROVAL': '主管审批',
+                'EXECUTION': '执行操作',
+                'VERIFICATION': '验证确认',
+                'COMPLETION': '完成确认'
+            };
+            return types[type] || type;
+        }
+
+        // 切换显示非活跃模板
+        function toggleInactiveTemplates() {
+            renderTemplates(templates);
+        }
+
+        // 查看模板详情
+        function viewTemplate(templateId) {
+            window.location.href = `/workflow/templates/${templateId}`;
+        }
+
+        // 编辑模板
+        function editTemplate(templateId) {
+            // TODO: 实现编辑功能
+            alert('编辑功能开发中...');
+        }
+
+        // 切换模板状态
+        function toggleTemplate(templateId, currentStatus) {
+            const action = currentStatus ? '停用' : '启用';
+            if (confirm(`确定要${action}这个模板吗？`)) {
+                const template = { isActive: !currentStatus };
+                
+                fetch(`/api/workflow-templates/${templateId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(template)
+                })
+                .then(response => {
+                    if (response.ok) {
+                        alert(`${action}成功`);
+                        loadTemplates();
+                    } else {
+                        alert(`${action}失败`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(`${action}失败`);
+                });
+            }
+        }
+
+        // 添加步骤
+        function addStep() {
+            stepCounter++;
+            const stepHtml = `
+                <div class="card mb-3" id="step-${stepCounter}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">步骤 ${stepCounter}</h6>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeStep(${stepCounter})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">步骤名称 *</label>
+                                <input type="text" class="form-control" name="steps[${stepCounter}][stepName]" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">步骤类型 *</label>
+                                <select class="form-select" name="steps[${stepCounter}][stepType]" required>
+                                    <option value="DEPARTMENT_REVIEW">部门初审</option>
+                                    <option value="MANAGER_APPROVAL">经理审批</option>
+                                    <option value="DIRECTOR_APPROVAL">主管审批</option>
+                                    <option value="EXECUTION">执行操作</option>
+                                    <option value="VERIFICATION">验证确认</option>
+                                    <option value="COMPLETION">完成确认</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">处理人角色</label>
+                                <select class="form-select" name="steps[${stepCounter}][assigneeRole]">
+                                    <option value="">自动分配</option>
+                                    <option value="ADMIN">管理员</option>
+                                    <option value="MANAGER">经理</option>
+                                    <option value="OPERATOR">操作员</option>
+                                    <option value="USER">用户</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label">时限(小时)</label>
+                                <input type="number" class="form-control" name="steps[${stepCounter}][timeLimitHours]" min="1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">并行组</label>
+                                <input type="number" class="form-control" name="steps[${stepCounter}][parallelGroup]" min="1">
+                                <small class="form-text text-muted">相同组的步骤并行执行</small>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" name="steps[${stepCounter}][isSkippable]">
+                                    <label class="form-check-label">可跳过</label>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" name="steps[${stepCounter}][autoApprove]">
+                                    <label class="form-check-label">超时自动通过</label>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="steps[${stepCounter}][stepOrder]" value="${stepCounter}">
+                    </div>
+                </div>
+            `;
+            document.getElementById('stepsContainer').insertAdjacentHTML('beforeend', stepHtml);
+        }
+
+        // 移除步骤
+        function removeStep(stepId) {
+            document.getElementById(`step-${stepId}`).remove();
+        }
+
+        // 创建模板
+        function createTemplate() {
+            const form = document.getElementById('createTemplateForm');
+            const formData = new FormData(form);
+            
+            // 构建模板对象
+            const template = {
+                templateName: formData.get('templateName'),
+                description: formData.get('description'),
+                workOrderType: formData.get('workOrderType') || null,
+                steps: []
+            };
+
+            // 收集步骤数据
+            const stepElements = document.querySelectorAll('#stepsContainer .card');
+            stepElements.forEach((stepElement, index) => {
+                const stepInputs = stepElement.querySelectorAll('input, select');
+                const step = { stepOrder: index + 1 };
+                
+                stepInputs.forEach(input => {
+                    const name = input.name.match(/\[([^\]]+)\]$/)?.[1];
+                    if (name) {
+                        if (input.type === 'checkbox') {
+                            step[name] = input.checked;
+                        } else if (input.type === 'number') {
+                            step[name] = input.value ? parseInt(input.value) : null;
+                        } else {
+                            step[name] = input.value || null;
+                        }
+                    }
+                });
+                
+                if (step.stepName && step.stepType) {
+                    template.steps.push(step);
+                }
+            });
+
+            if (template.steps.length === 0) {
+                alert('至少需要添加一个步骤');
+                return;
+            }
+
+            // 提交模板
+            fetch('/api/workflow-templates', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(template)
+            })
+            .then(response => {
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('createTemplateModal')).hide();
+                    form.reset();
+                    document.getElementById('stepsContainer').innerHTML = '';
+                    stepCounter = 0;
+                    loadTemplates();
+                    alert('模板创建成功');
+                } else {
+                    return response.text().then(text => {
+                        throw new Error(text);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('创建模板失败: ' + error.message);
+            });
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadTemplates();
+        }
+    </script>
+</body>
+</html> 

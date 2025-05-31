@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的审批任务 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        .workflow-card { margin-bottom: 15px; }
+        .pending-task { border-left: 4px solid #ffc107; }
+        .overdue-task { border-left: 4px solid #dc3545; }
+        .step-badge { font-size: 0.8em; margin: 2px; }
+        .priority-high { color: #dc3545; font-weight: bold; }
+        .priority-medium { color: #fd7e14; }
+        .priority-low { color: #198754; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="@{/workflow}">工作流管理</a></li>
+                        <li class="breadcrumb-item active">我的审批任务</li>
+                    </ol>
+                </nav>
+                <h2>我的审批任务</h2>
+                <p class="text-muted">处理分配给我的工作流审批任务</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-success" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+        </div>
+
+        <!-- 筛选和搜索 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="statusFilter" class="form-label">状态筛选</label>
+                        <select id="statusFilter" class="form-select" onchange="filterTasks()">
+                            <option value="">全部</option>
+                            <option value="PENDING">待处理</option>
+                            <option value="overdue">已超时</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="stepTypeFilter" class="form-label">步骤类型</label>
+                        <select id="stepTypeFilter" class="form-select" onchange="filterTasks()">
+                            <option value="">全部</option>
+                            <option value="DEPARTMENT_REVIEW">部门初审</option>
+                            <option value="MANAGER_APPROVAL">经理审批</option>
+                            <option value="DIRECTOR_APPROVAL">主管审批</option>
+                            <option value="EXECUTION">执行操作</option>
+                            <option value="VERIFICATION">验证确认</option>
+                            <option value="COMPLETION">完成确认</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="searchInput" class="form-label">搜索</label>
+                        <input type="text" id="searchInput" class="form-control" placeholder="工单标题或编号..." onkeyup="filterTasks()">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                            清除筛选
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 任务列表 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">待处理任务列表</h5>
+            </div>
+            <div class="card-body">
+                <div id="tasksList">
+                    <!-- 任务列表将在这里动态加载 -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载任务数据...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 审批模态框 -->
+    <div class="modal fade" id="approvalModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">处理审批任务</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="taskDetails">
+                        <!-- 任务详情将在这里显示 -->
+                    </div>
+                    <hr>
+                    <form id="approvalForm">
+                        <input type="hidden" id="stepId">
+                        <div class="mb-3">
+                            <label class="form-label">审批结果 *</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="result" id="approve" value="approve" checked>
+                                <label class="form-check-label" for="approve">
+                                    <i class="bi bi-check-circle text-success"></i> 通过
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="result" id="reject" value="reject">
+                                <label class="form-check-label" for="reject">
+                                    <i class="bi bi-x-circle text-danger"></i> 拒绝
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="comments" class="form-label">处理意见 *</label>
+                            <textarea class="form-control" id="comments" rows="4" required placeholder="请输入处理意见..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="submitApproval()">提交</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        let currentUserId = null;
+        let allTasks = [];
+        let filteredTasks = [];
+        
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCurrentUser();
+            loadTasks();
+        });
+
+        // 获取当前用户信息
+        function loadCurrentUser() {
+            // 暂时使用模拟数据
+            currentUserId = 1;
+        }
+
+        // 加载任务
+        function loadTasks() {
+            if (!currentUserId) return;
+            
+            fetch(`/api/workflow-steps/pending/user/${currentUserId}`)
+                .then(response => response.json())
+                .then(data => {
+                    allTasks = data;
+                    filteredTasks = [...allTasks];
+                    renderTasks(filteredTasks);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('tasksList').innerHTML = 
+                        '<div class="alert alert-danger">加载任务数据失败</div>';
+                });
+        }
+
+        // 渲染任务列表
+        function renderTasks(tasks) {
+            const container = document.getElementById('tasksList');
+            if (!tasks || tasks.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">暂无待处理任务</div>';
+                return;
+            }
+
+            let html = '';
+            tasks.forEach(task => {
+                const isOverdue = task.deadline && new Date(task.deadline) < new Date();
+                const cardClass = isOverdue ? 'overdue-task' : 'pending-task';
+                const priorityClass = getPriorityClass(task.workOrder.priority);
+                
+                html += `
+                    <div class="card workflow-card ${cardClass}">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-4">
+                                    <h6 class="card-title mb-1">
+                                        工单 #${task.workOrder.id} 
+                                        ${isOverdue ? '<i class="bi bi-exclamation-triangle text-danger" title="已超时"></i>' : ''}
+                                    </h6>
+                                    <p class="text-muted mb-1">${task.workOrder.title}</p>
+                                    <small class="text-muted">创建人: ${task.workOrder.createdBy?.username || '系统'}</small>
+                                </div>
+                                <div class="col-md-2">
+                                    <span class="step-badge badge bg-primary">${task.stepName}</span>
+                                    <br>
+                                    <small class="text-muted">${getStepTypeName(task.stepType)}</small>
+                                </div>
+                                <div class="col-md-2">
+                                    <span class="${priorityClass}">
+                                        ${getPriorityName(task.workOrder.priority)}
+                                    </span>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">
+                                        创建: ${new Date(task.workOrder.createdAt).toLocaleDateString()}
+                                        <br>
+                                        ${task.deadline ? 
+                                            `截止: ${new Date(task.deadline).toLocaleString()}` : 
+                                            '无截止时间'}
+                                    </small>
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <button class="btn btn-sm btn-primary" onclick="openApprovalModal(${task.id})">
+                                        <i class="bi bi-check-circle"></i> 处理
+                                    </button>
+                                    <br>
+                                    <a href="/work-orders/${task.workOrder.id}" class="btn btn-sm btn-outline-info mt-1">
+                                        <i class="bi bi-eye"></i> 详情
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // 获取优先级样式类
+        function getPriorityClass(priority) {
+            switch(priority) {
+                case 'HIGH': return 'priority-high';
+                case 'MEDIUM': return 'priority-medium';
+                case 'LOW': return 'priority-low';
+                default: return '';
+            }
+        }
+
+        // 获取优先级中文名
+        function getPriorityName(priority) {
+            switch(priority) {
+                case 'HIGH': return '高';
+                case 'MEDIUM': return '中';
+                case 'LOW': return '低';
+                default: return priority;
+            }
+        }
+
+        // 获取步骤类型中文名
+        function getStepTypeName(type) {
+            const types = {
+                'DEPARTMENT_REVIEW': '部门初审',
+                'MANAGER_APPROVAL': '经理审批',
+                'DIRECTOR_APPROVAL': '主管审批',
+                'EXECUTION': '执行操作',
+                'VERIFICATION': '验证确认',
+                'COMPLETION': '完成确认'
+            };
+            return types[type] || type;
+        }
+
+        // 筛选任务
+        function filterTasks() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const stepTypeFilter = document.getElementById('stepTypeFilter').value;
+            const searchInput = document.getElementById('searchInput').value.toLowerCase();
+
+            filteredTasks = allTasks.filter(task => {
+                // 状态筛选
+                if (statusFilter === 'overdue') {
+                    const isOverdue = task.deadline && new Date(task.deadline) < new Date();
+                    if (!isOverdue) return false;
+                } else if (statusFilter && task.status !== statusFilter) {
+                    return false;
+                }
+
+                // 步骤类型筛选
+                if (stepTypeFilter && task.stepType !== stepTypeFilter) {
+                    return false;
+                }
+
+                // 搜索筛选
+                if (searchInput) {
+                    const searchText = `${task.workOrder.id} ${task.workOrder.title}`.toLowerCase();
+                    if (!searchText.includes(searchInput)) return false;
+                }
+
+                return true;
+            });
+
+            renderTasks(filteredTasks);
+        }
+
+        // 清除筛选
+        function clearFilters() {
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('stepTypeFilter').value = '';
+            document.getElementById('searchInput').value = '';
+            filteredTasks = [...allTasks];
+            renderTasks(filteredTasks);
+        }
+
+        // 打开审批模态框
+        function openApprovalModal(stepId) {
+            const task = allTasks.find(t => t.id === stepId);
+            if (!task) return;
+
+            document.getElementById('stepId').value = stepId;
+            
+            // 显示任务详情
+            const taskDetails = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>工单编号:</strong> #${task.workOrder.id}<br>
+                        <strong>工单标题:</strong> ${task.workOrder.title}<br>
+                        <strong>优先级:</strong> ${getPriorityName(task.workOrder.priority)}<br>
+                        <strong>创建人:</strong> ${task.workOrder.createdBy?.username || '系统'}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>审批步骤:</strong> ${task.stepName}<br>
+                        <strong>步骤类型:</strong> ${getStepTypeName(task.stepType)}<br>
+                        <strong>截止时间:</strong> ${task.deadline ? new Date(task.deadline).toLocaleString() : '无限制'}<br>
+                        <strong>工单描述:</strong> ${task.workOrder.description || '无'}
+                    </div>
+                </div>
+            `;
+            document.getElementById('taskDetails').innerHTML = taskDetails;
+            
+            // 重置表单
+            document.getElementById('approvalForm').reset();
+            document.getElementById('approve').checked = true;
+            document.getElementById('comments').value = '';
+            
+            new bootstrap.Modal(document.getElementById('approvalModal')).show();
+        }
+
+        // 提交审批
+        function submitApproval() {
+            const stepId = document.getElementById('stepId').value;
+            const result = document.querySelector('input[name="result"]:checked').value;
+            const comments = document.getElementById('comments').value.trim();
+
+            if (!comments) {
+                alert('请输入处理意见');
+                return;
+            }
+
+            const endpoint = result === 'approve' ? 'approve' : 'reject';
+            
+            fetch(`/api/workflow-steps/${stepId}/${endpoint}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    comments: comments
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('approvalModal')).hide();
+                    alert(result === 'approve' ? '审批通过成功' : '审批拒绝成功');
+                    loadTasks(); // 重新加载任务列表
+                } else {
+                    return response.text().then(text => {
+                        throw new Error(text);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('操作失败: ' + error.message);
+            });
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadTasks();
+        }
+    </script>
+</body>
+</html> 
