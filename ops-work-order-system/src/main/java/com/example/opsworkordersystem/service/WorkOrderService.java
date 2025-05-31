@@ -3,6 +3,7 @@ package com.example.opsworkordersystem.service;
 import com.example.opsworkordersystem.entity.Status;
 import com.example.opsworkordersystem.entity.User;
 import com.example.opsworkordersystem.entity.WorkOrder;
+import com.example.opsworkordersystem.entity.WorkflowStep;
 import com.example.opsworkordersystem.repository.UserRepository;
 import com.example.opsworkordersystem.repository.WorkOrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,9 @@ public class WorkOrderService {
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private WorkflowService workflowService;
 
     // 创建工单
     @Transactional
@@ -69,6 +73,22 @@ public class WorkOrderService {
         
         // 保存工单
         WorkOrder savedWorkOrder = workOrderRepository.save(workOrder);
+        
+        // 初始化工作流
+        if (savedWorkOrder.getType() != null) {
+            try {
+                List<WorkflowStep> workflowSteps = workflowService.initializeWorkflow(savedWorkOrder, savedWorkOrder.getType());
+                // 工作流初始化成功
+                if (!workflowSteps.isEmpty()) {
+                    // 更新工单状态为审批中
+                    savedWorkOrder.setStatus(Status.IN_PROGRESS);
+                    savedWorkOrder = workOrderRepository.save(savedWorkOrder);
+                }
+            } catch (Exception e) {
+                // 如果没有找到适配的工作流模板，继续正常处理
+                System.err.println("工作流初始化失败: " + e.getMessage());
+            }
+        }
         
         // 使用预加载的查询方法获取完整的工单（包括关联关系）
         return workOrderRepository.findSavedWorkOrderById(savedWorkOrder.getId().longValue())

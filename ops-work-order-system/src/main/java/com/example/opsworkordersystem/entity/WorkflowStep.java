@@ -30,8 +30,8 @@ public class WorkflowStep {
     @JoinColumn(name = "assignee_id")
     private User assignee; // 当前处理人
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assignee_role")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "assignee_role")
     private Role assigneeRole; // 处理人角色
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -59,6 +59,9 @@ public class WorkflowStep {
 
     @Column(name = "is_parallel")
     private Boolean isParallel = false; // 是否并行处理
+
+    @Column(name = "parallel_group")
+    private Integer parallelGroup; // 并行组（相同组的步骤并行执行）
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -196,6 +199,14 @@ public class WorkflowStep {
 
     public void setIsParallel(Boolean isParallel) {
         this.isParallel = isParallel;
+    }
+
+    public Integer getParallelGroup() {
+        return parallelGroup;
+    }
+
+    public void setParallelGroup(Integer parallelGroup) {
+        this.parallelGroup = parallelGroup;
     }
 
     public LocalDateTime getCreatedAt() {

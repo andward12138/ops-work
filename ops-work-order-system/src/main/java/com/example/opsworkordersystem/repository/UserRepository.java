@@ -23,4 +23,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     
     // 根据角色查找用户
     List<User> findByRole(Role role);
+    
+    // 根据角色和部门查找用户
+    List<User> findByRoleAndDepartmentId(Role role, Integer departmentId);
 }

@@ -36,6 +36,9 @@ public class WorkOrder {
     @Column(name = "department")
     private String department;
 
+    @Column(name = "type")
+    private String type;  // 工单类型
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -127,6 +130,14 @@ public class WorkOrder {
 
     public void setDepartment(String department) {
         this.department = department;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -26,6 +26,9 @@ public class ApprovalRecord {
     @Column(name = "comments")
     private String comments;
 
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -75,12 +78,24 @@ public class ApprovalRecord {
         this.status = status;
     }
 
+    public void setApprovalStatus(ApprovalStatus status) {
+        this.status = status;
+    }
+
     public String getComments() {
         return comments;
     }
 
     public void setComments(String comments) {
         this.comments = comments;
+    }
+
+    public LocalDateTime getApprovedAt() {
+        return approvedAt;
+    }
+
+    public void setApprovedAt(LocalDateTime approvedAt) {
+        this.approvedAt = approvedAt;
     }
 
     public LocalDateTime getCreatedAt() {
