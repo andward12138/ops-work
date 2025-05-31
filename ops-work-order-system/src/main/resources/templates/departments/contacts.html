@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>联系人管理 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body { padding-top: 20px; }
+        .contact-card { margin-bottom: 15px; }
+        .primary-contact { border-left: 4px solid #0d6efd; }
+        .emergency-contact { border-left: 4px solid #dc3545; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="@{/departments}">部门管理</a></li>
+                        <li class="breadcrumb-item active">联系人管理</li>
+                    </ol>
+                </nav>
+                <h2>联系人管理</h2>
+                <p class="text-muted">管理部门联系人信息</p>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>部门：</strong><span id="departmentName">加载中...</span>
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                    <i class="bi bi-plus-lg"></i> 添加联系人
+                </button>
+                <button class="btn btn-success" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+        </div>
+
+        <!-- 联系人列表 -->
+        <div class="card">
+            <div class="card-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="mb-0">联系人列表</h5>
+                    </div>
+                    <div class="col-auto">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="searchInput" placeholder="搜索联系人...">
+                            <button class="btn btn-outline-secondary" onclick="searchContacts()">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="contactsList">
+                    <!-- 联系人列表将在这里动态加载 -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载联系人数据...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加联系人模态框 -->
+    <div class="modal fade" id="addContactModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加联系人</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addContactForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">姓名 *</label>
+                                    <input type="text" class="form-control" name="name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">职位</label>
+                                    <input type="text" class="form-control" name="position">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">电话 *</label>
+                                    <input type="tel" class="form-control" name="phone" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">手机</label>
+                                    <input type="tel" class="form-control" name="mobile">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">邮箱</label>
+                            <input type="email" class="form-control" name="email">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">工作时间</label>
+                            <input type="text" class="form-control" name="workingHours" placeholder="例如：9:00-18:00">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="isPrimary" id="isPrimary">
+                                    <label class="form-check-label" for="isPrimary">
+                                        设为主要联系人
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="isEmergency" id="isEmergency">
+                                    <label class="form-check-label" for="isEmergency">
+                                        设为紧急联系人
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" name="remark" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="addContact()">确认添加</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑联系人模态框 -->
+    <div class="modal fade" id="editContactModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑联系人</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editContactForm">
+                        <input type="hidden" name="id" id="editContactId">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">姓名 *</label>
+                                    <input type="text" class="form-control" name="name" id="editName" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">职位</label>
+                                    <input type="text" class="form-control" name="position" id="editPosition">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">电话 *</label>
+                                    <input type="tel" class="form-control" name="phone" id="editPhone" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">手机</label>
+                                    <input type="tel" class="form-control" name="mobile" id="editMobile">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">邮箱</label>
+                            <input type="email" class="form-control" name="email" id="editEmail">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">工作时间</label>
+                            <input type="text" class="form-control" name="workingHours" id="editWorkingHours">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="isPrimary" id="editIsPrimary">
+                                    <label class="form-check-label" for="editIsPrimary">
+                                        设为主要联系人
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="isEmergency" id="editIsEmergency">
+                                    <label class="form-check-label" for="editIsEmergency">
+                                        设为紧急联系人
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" name="remark" id="editRemark" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="updateContact()">确认更新</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        // 获取部门ID
+        const departmentId = window.location.pathname.split('/')[2];
+        
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDepartmentInfo();
+            loadContacts();
+        });
+
+        // 加载部门信息
+        function loadDepartmentInfo() {
+            fetch(`/api/departments/${departmentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('departmentName').textContent = data.name;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('departmentName').textContent = '未知部门';
+                });
+        }
+
+        // 加载联系人列表
+        function loadContacts() {
+            fetch(`/api/department-contacts/department/${departmentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    renderContacts(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('contactsList').innerHTML = 
+                        '<div class="alert alert-danger">加载联系人数据失败</div>';
+                });
+        }
+
+        // 渲染联系人列表
+        function renderContacts(contacts) {
+            const container = document.getElementById('contactsList');
+            if (!contacts || contacts.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">暂无联系人数据</div>';
+                return;
+            }
+
+            let html = '';
+            contacts.forEach(contact => {
+                const cardClass = getContactCardClass(contact);
+                const badges = getContactBadges(contact);
+                
+                html += `
+                    <div class="card contact-card ${cardClass}">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-4">
+                                    <h6 class="card-title mb-1">${contact.name}</h6>
+                                    <p class="text-muted mb-0">${contact.position || '未设置职位'}</p>
+                                    ${badges}
+                                </div>
+                                <div class="col-md-4">
+                                    <p class="mb-1"><i class="bi bi-telephone"></i> ${contact.phone}</p>
+                                    ${contact.mobile ? `<p class="mb-1"><i class="bi bi-phone"></i> ${contact.mobile}</p>` : ''}
+                                    ${contact.email ? `<p class="mb-1"><i class="bi bi-envelope"></i> ${contact.email}</p>` : ''}
+                                </div>
+                                <div class="col-md-2">
+                                    ${contact.workingHours ? `<small class="text-muted">${contact.workingHours}</small>` : ''}
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editContact(${contact.id})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteContact(${contact.id})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            ${contact.remark ? `<p class="text-muted mt-2 mb-0">${contact.remark}</p>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // 获取联系人卡片样式
+        function getContactCardClass(contact) {
+            if (contact.isPrimary) return 'primary-contact';
+            if (contact.isEmergency) return 'emergency-contact';
+            return '';
+        }
+
+        // 获取联系人标识
+        function getContactBadges(contact) {
+            let badges = '';
+            if (contact.isPrimary) {
+                badges += '<span class="badge bg-primary me-1">主要联系人</span>';
+            }
+            if (contact.isEmergency) {
+                badges += '<span class="badge bg-danger me-1">紧急联系人</span>';
+            }
+            return badges;
+        }
+
+        // 添加联系人
+        function addContact() {
+            const form = document.getElementById('addContactForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // 处理checkbox
+            data.isPrimary = formData.has('isPrimary');
+            data.isEmergency = formData.has('isEmergency');
+
+            fetch(`/api/department-contacts/department/${departmentId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('addContactModal')).hide();
+                    form.reset();
+                    loadContacts();
+                    alert('添加成功');
+                } else {
+                    alert('添加失败');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('添加失败');
+            });
+        }
+
+        // 编辑联系人
+        function editContact(contactId) {
+            fetch(`/api/department-contacts/${contactId}`)
+                .then(response => response.json())
+                .then(contact => {
+                    // 填充编辑表单
+                    document.getElementById('editContactId').value = contact.id;
+                    document.getElementById('editName').value = contact.name;
+                    document.getElementById('editPosition').value = contact.position || '';
+                    document.getElementById('editPhone').value = contact.phone;
+                    document.getElementById('editMobile').value = contact.mobile || '';
+                    document.getElementById('editEmail').value = contact.email || '';
+                    document.getElementById('editWorkingHours').value = contact.workingHours || '';
+                    document.getElementById('editIsPrimary').checked = contact.isPrimary || false;
+                    document.getElementById('editIsEmergency').checked = contact.isEmergency || false;
+                    document.getElementById('editRemark').value = contact.remark || '';
+                    
+                    // 显示编辑模态框
+                    new bootstrap.Modal(document.getElementById('editContactModal')).show();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('获取联系人信息失败');
+                });
+        }
+
+        // 更新联系人
+        function updateContact() {
+            const form = document.getElementById('editContactForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            const contactId = data.id;
+            
+            // 处理checkbox
+            data.isPrimary = formData.has('isPrimary');
+            data.isEmergency = formData.has('isEmergency');
+            delete data.id;
+
+            fetch(`/api/department-contacts/${contactId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('editContactModal')).hide();
+                    loadContacts();
+                    alert('更新成功');
+                } else {
+                    alert('更新失败');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('更新失败');
+            });
+        }
+
+        // 删除联系人
+        function deleteContact(contactId) {
+            if (confirm('确定要删除这个联系人吗？此操作不可撤销。')) {
+                fetch(`/api/department-contacts/${contactId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        loadContacts();
+                        alert('删除成功');
+                    } else {
+                        alert('删除失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('删除失败');
+                });
+            }
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadContacts();
+        }
+
+        // 搜索联系人
+        function searchContacts() {
+            const keyword = document.getElementById('searchInput').value;
+            if (keyword.trim()) {
+                fetch(`/api/department-contacts/search/name?name=${encodeURIComponent(keyword)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // 过滤当前部门的联系人
+                        const filtered = data.filter(contact => contact.department.id == departmentId);
+                        renderContacts(filtered);
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('搜索失败');
+                    });
+            } else {
+                loadContacts();
+            }
+        }
+    </script>
+</body>
+</html> 

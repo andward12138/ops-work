@@ -1,5 +1,7 @@
 package com.example.opsworkordersystem.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,10 +29,22 @@ public class Department {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
+    @JsonIgnore  // 忽略父部门以避免循环引用
     private Department parent; // 上级部门
 
     @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore  // 忽略子部门列表以避免循环引用
     private List<Department> children; // 下级部门
+
+    // 新增：联系人关联
+    @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore  // 忽略联系人列表以减少序列化复杂度
+    private List<DepartmentContact> contacts; // 部门联系人
+
+    // 新增：权限关联
+    @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore  // 忽略权限列表以减少序列化复杂度
+    private List<DepartmentPermission> permissions; // 部门权限
 
     @Column(name = "description")
     private String description;
@@ -117,6 +131,22 @@ public class Department {
         this.children = children;
     }
 
+    public List<DepartmentContact> getContacts() {
+        return contacts;
+    }
+
+    public void setContacts(List<DepartmentContact> contacts) {
+        this.contacts = contacts;
+    }
+
+    public List<DepartmentPermission> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(List<DepartmentPermission> permissions) {
+        this.permissions = permissions;
+    }
+
     public String getDescription() {
         return description;
     }
@@ -185,5 +215,36 @@ public class Department {
             return false;
         }
         return other.getId().equals(this.parent.getId());
+    }
+
+    // 新增：权限相关方法
+    public boolean hasPermission(PermissionType permissionType) {
+        if (permissions == null) {
+            return false;
+        }
+        return permissions.stream()
+                .anyMatch(p -> p.getPermissionType() == permissionType && p.isValid());
+    }
+
+    // 新增：获取主要联系人
+    public DepartmentContact getPrimaryContact() {
+        if (contacts == null) {
+            return null;
+        }
+        return contacts.stream()
+                .filter(contact -> contact.getIsPrimary() != null && contact.getIsPrimary())
+                .findFirst()
+                .orElse(null);
+    }
+
+    // 新增：获取紧急联系人
+    public DepartmentContact getEmergencyContact() {
+        if (contacts == null) {
+            return null;
+        }
+        return contacts.stream()
+                .filter(contact -> contact.getIsEmergency() != null && contact.getIsEmergency())
+                .findFirst()
+                .orElse(null);
     }
 } 

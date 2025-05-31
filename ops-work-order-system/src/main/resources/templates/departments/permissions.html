@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>权限管理 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        .permission-group { margin-bottom: 25px; }
+        .permission-card { margin-bottom: 10px; }
+        .permission-active { border-left: 4px solid #198754; }
+        .permission-expired { border-left: 4px solid #dc3545; }
+        .permission-expiring { border-left: 4px solid #ffc107; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="@{/departments}">部门管理</a></li>
+                        <li class="breadcrumb-item active">权限管理</li>
+                    </ol>
+                </nav>
+                <h2>权限管理</h2>
+                <p class="text-muted">管理部门系统权限和访问控制</p>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>部门：</strong><span id="departmentName">加载中...</span>
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#grantPermissionModal">
+                    <i class="bi bi-plus-lg"></i> 授予权限
+                </button>
+                <button class="btn btn-success" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+        </div>
+
+        <!-- 权限统计 -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-success">
+                    <div class="card-body">
+                        <h6 class="card-title">有效权限</h6>
+                        <p class="card-text display-6" id="activePermissions">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-warning">
+                    <div class="card-body">
+                        <h6 class="card-title">即将过期</h6>
+                        <p class="card-text display-6" id="expiringPermissions">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-danger">
+                    <div class="card-body">
+                        <h6 class="card-title">已过期</h6>
+                        <p class="card-text display-6" id="expiredPermissions">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-info">
+                    <div class="card-body">
+                        <h6 class="card-title">总权限数</h6>
+                        <p class="card-text display-6" id="totalPermissions">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 权限列表 -->
+        <div class="card">
+            <div class="card-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="mb-0">权限列表</h5>
+                    </div>
+                    <div class="col-auto">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="showAllPermissions()">
+                                全部
+                            </button>
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="showActivePermissions()">
+                                有效
+                            </button>
+                            <button type="button" class="btn btn-outline-warning btn-sm" onclick="showExpiringPermissions()">
+                                即将过期
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="permissionsList">
+                    <!-- 权限列表将在这里动态加载 -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载权限数据...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 授予权限模态框 -->
+    <div class="modal fade" id="grantPermissionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">授予权限</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="grantPermissionForm">
+                        <div class="mb-3">
+                            <label class="form-label">权限类型 *</label>
+                            <select class="form-select" name="permissionType" required>
+                                <optgroup label="工单相关权限">
+                                    <option value="CREATE_WORK_ORDER">创建工单</option>
+                                    <option value="VIEW_WORK_ORDER">查看工单</option>
+                                    <option value="EDIT_WORK_ORDER">编辑工单</option>
+                                    <option value="DELETE_WORK_ORDER">删除工单</option>
+                                    <option value="ASSIGN_WORK_ORDER">分配工单</option>
+                                </optgroup>
+                                <optgroup label="审批相关权限">
+                                    <option value="APPROVE_WORK_ORDER">审批工单</option>
+                                    <option value="REJECT_WORK_ORDER">拒绝工单</option>
+                                    <option value="REASSIGN_WORK_ORDER">重新分配工单</option>
+                                </optgroup>
+                                <optgroup label="部门管理权限">
+                                    <option value="MANAGE_DEPARTMENT">管理部门</option>
+                                    <option value="VIEW_DEPARTMENT">查看部门</option>
+                                    <option value="MANAGE_CONTACTS">管理联系人</option>
+                                </optgroup>
+                                <optgroup label="用户管理权限">
+                                    <option value="MANAGE_USERS">管理用户</option>
+                                    <option value="VIEW_USERS">查看用户</option>
+                                </optgroup>
+                                <optgroup label="报表权限">
+                                    <option value="VIEW_REPORTS">查看报表</option>
+                                    <option value="EXPORT_REPORTS">导出报表</option>
+                                </optgroup>
+                                <optgroup label="系统管理权限">
+                                    <option value="SYSTEM_ADMIN">系统管理</option>
+                                    <option value="CONFIG_WORKFLOW">配置工作流</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">授权人 *</label>
+                            <input type="text" class="form-control" name="grantedBy" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">过期时间</label>
+                            <input type="datetime-local" class="form-control" name="expiresAt">
+                            <div class="form-text">留空表示永不过期</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" name="remark" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="grantPermission()">确认授予</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 续期权限模态框 -->
+    <div class="modal fade" id="renewPermissionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">续期权限</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="renewPermissionForm">
+                        <input type="hidden" name="permissionType" id="renewPermissionType">
+                        <div class="mb-3">
+                            <label class="form-label">续期天数 *</label>
+                            <select class="form-select" name="days" required>
+                                <option value="30">30天</option>
+                                <option value="90">90天</option>
+                                <option value="180">180天</option>
+                                <option value="365">1年</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="renewPermission()">确认续期</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        // 获取部门ID
+        const departmentId = window.location.pathname.split('/')[2];
+        let currentPermissions = [];
+        
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDepartmentInfo();
+            loadPermissions();
+        });
+
+        // 加载部门信息
+        function loadDepartmentInfo() {
+            fetch(`/api/departments/${departmentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('departmentName').textContent = data.name;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('departmentName').textContent = '未知部门';
+                });
+        }
+
+        // 加载权限列表
+        function loadPermissions() {
+            fetch(`/api/department-permissions/department/${departmentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    currentPermissions = data;
+                    renderPermissions(data);
+                    updateStatistics(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('permissionsList').innerHTML = 
+                        '<div class="alert alert-danger">加载权限数据失败</div>';
+                });
+        }
+
+        // 渲染权限列表
+        function renderPermissions(permissions) {
+            const container = document.getElementById('permissionsList');
+            if (!permissions || permissions.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">暂无权限数据</div>';
+                return;
+            }
+
+            // 按权限类型分组
+            const grouped = groupPermissionsByType(permissions);
+            let html = '';
+
+            Object.keys(grouped).forEach(group => {
+                html += `
+                    <div class="permission-group">
+                        <h6 class="text-muted">${group}</h6>
+                        ${grouped[group].map(permission => renderPermissionCard(permission)).join('')}
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // 按权限类型分组
+        function groupPermissionsByType(permissions) {
+            const groups = {
+                '工单相关权限': [],
+                '审批相关权限': [],
+                '部门管理权限': [],
+                '用户管理权限': [],
+                '报表权限': [],
+                '系统管理权限': []
+            };
+
+            permissions.forEach(permission => {
+                const type = permission.permissionType;
+                if (['CREATE_WORK_ORDER', 'VIEW_WORK_ORDER', 'EDIT_WORK_ORDER', 'DELETE_WORK_ORDER', 'ASSIGN_WORK_ORDER'].includes(type)) {
+                    groups['工单相关权限'].push(permission);
+                } else if (['APPROVE_WORK_ORDER', 'REJECT_WORK_ORDER', 'REASSIGN_WORK_ORDER'].includes(type)) {
+                    groups['审批相关权限'].push(permission);
+                } else if (['MANAGE_DEPARTMENT', 'VIEW_DEPARTMENT', 'MANAGE_CONTACTS'].includes(type)) {
+                    groups['部门管理权限'].push(permission);
+                } else if (['MANAGE_USERS', 'VIEW_USERS'].includes(type)) {
+                    groups['用户管理权限'].push(permission);
+                } else if (['VIEW_REPORTS', 'EXPORT_REPORTS'].includes(type)) {
+                    groups['报表权限'].push(permission);
+                } else if (['SYSTEM_ADMIN', 'CONFIG_WORKFLOW'].includes(type)) {
+                    groups['系统管理权限'].push(permission);
+                }
+            });
+
+            // 移除空组
+            Object.keys(groups).forEach(key => {
+                if (groups[key].length === 0) {
+                    delete groups[key];
+                }
+            });
+
+            return groups;
+        }
+
+        // 渲染单个权限卡片
+        function renderPermissionCard(permission) {
+            const status = getPermissionStatus(permission);
+            const statusClass = getPermissionStatusClass(status);
+            const statusBadge = getPermissionStatusBadge(status);
+            
+            return `
+                <div class="card permission-card ${statusClass}">
+                    <div class="card-body py-2">
+                        <div class="row align-items-center">
+                            <div class="col-md-3">
+                                <h6 class="card-title mb-0">${getPermissionTypeName(permission.permissionType)}</h6>
+                            </div>
+                            <div class="col-md-2">
+                                ${statusBadge}
+                            </div>
+                            <div class="col-md-2">
+                                <small class="text-muted">授权人: ${permission.grantedBy}</small>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">
+                                    ${permission.expiresAt ? 
+                                        `过期: ${new Date(permission.expiresAt).toLocaleDateString()}` : 
+                                        '永不过期'}
+                                </small>
+                            </div>
+                            <div class="col-md-2 text-end">
+                                ${status === 'expiring' || status === 'expired' ? 
+                                    `<button class="btn btn-sm btn-outline-warning" onclick="showRenewModal('${permission.permissionType}')">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>` : ''}
+                                <button class="btn btn-sm btn-outline-danger" onclick="revokePermission('${permission.permissionType}')">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                        ${permission.remark ? `<p class="text-muted mt-1 mb-0">${permission.remark}</p>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 获取权限状态
+        function getPermissionStatus(permission) {
+            if (!permission.expiresAt) return 'active';
+            
+            const now = new Date();
+            const expiresAt = new Date(permission.expiresAt);
+            const daysUntilExpiry = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
+            
+            if (daysUntilExpiry < 0) return 'expired';
+            if (daysUntilExpiry <= 7) return 'expiring';
+            return 'active';
+        }
+
+        // 获取权限状态样式
+        function getPermissionStatusClass(status) {
+            switch (status) {
+                case 'active': return 'permission-active';
+                case 'expiring': return 'permission-expiring';
+                case 'expired': return 'permission-expired';
+                default: return '';
+            }
+        }
+
+        // 获取权限状态标识
+        function getPermissionStatusBadge(status) {
+            switch (status) {
+                case 'active': return '<span class="badge bg-success">有效</span>';
+                case 'expiring': return '<span class="badge bg-warning">即将过期</span>';
+                case 'expired': return '<span class="badge bg-danger">已过期</span>';
+                default: return '';
+            }
+        }
+
+        // 获取权限类型中文名
+        function getPermissionTypeName(type) {
+            const types = {
+                'CREATE_WORK_ORDER': '创建工单',
+                'VIEW_WORK_ORDER': '查看工单',
+                'EDIT_WORK_ORDER': '编辑工单',
+                'DELETE_WORK_ORDER': '删除工单',
+                'ASSIGN_WORK_ORDER': '分配工单',
+                'APPROVE_WORK_ORDER': '审批工单',
+                'REJECT_WORK_ORDER': '拒绝工单',
+                'REASSIGN_WORK_ORDER': '重新分配工单',
+                'MANAGE_DEPARTMENT': '管理部门',
+                'VIEW_DEPARTMENT': '查看部门',
+                'MANAGE_CONTACTS': '管理联系人',
+                'MANAGE_USERS': '管理用户',
+                'VIEW_USERS': '查看用户',
+                'VIEW_REPORTS': '查看报表',
+                'EXPORT_REPORTS': '导出报表',
+                'SYSTEM_ADMIN': '系统管理',
+                'CONFIG_WORKFLOW': '配置工作流'
+            };
+            return types[type] || type;
+        }
+
+        // 更新统计信息
+        function updateStatistics(permissions) {
+            let active = 0, expiring = 0, expired = 0;
+            
+            permissions.forEach(permission => {
+                const status = getPermissionStatus(permission);
+                switch (status) {
+                    case 'active': active++; break;
+                    case 'expiring': expiring++; break;
+                    case 'expired': expired++; break;
+                }
+            });
+
+            document.getElementById('activePermissions').textContent = active;
+            document.getElementById('expiringPermissions').textContent = expiring;
+            document.getElementById('expiredPermissions').textContent = expired;
+            document.getElementById('totalPermissions').textContent = permissions.length;
+        }
+
+        // 授予权限
+        function grantPermission() {
+            const form = document.getElementById('grantPermissionForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            data.departmentId = parseInt(departmentId);
+            if (data.expiresAt) {
+                data.expiresAt = new Date(data.expiresAt).toISOString();
+            } else {
+                delete data.expiresAt;
+            }
+
+            fetch('/api/department-permissions/grant', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('grantPermissionModal')).hide();
+                    form.reset();
+                    loadPermissions();
+                    alert('权限授予成功');
+                } else {
+                    alert('权限授予失败');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('权限授予失败');
+            });
+        }
+
+        // 撤销权限
+        function revokePermission(permissionType) {
+            if (confirm('确定要撤销这个权限吗？此操作不可撤销。')) {
+                fetch('/api/department-permissions/revoke', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        departmentId: parseInt(departmentId),
+                        permissionType: permissionType
+                    })
+                })
+                .then(response => {
+                    if (response.ok) {
+                        loadPermissions();
+                        alert('权限撤销成功');
+                    } else {
+                        alert('权限撤销失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('权限撤销失败');
+                });
+            }
+        }
+
+        // 显示续期模态框
+        function showRenewModal(permissionType) {
+            document.getElementById('renewPermissionType').value = permissionType;
+            new bootstrap.Modal(document.getElementById('renewPermissionModal')).show();
+        }
+
+        // 续期权限
+        function renewPermission() {
+            const form = document.getElementById('renewPermissionForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            data.departmentId = parseInt(departmentId);
+            data.days = parseInt(data.days);
+
+            fetch('/api/department-permissions/renew', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('renewPermissionModal')).hide();
+                    loadPermissions();
+                    alert('权限续期成功');
+                } else {
+                    alert('权限续期失败');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('权限续期失败');
+            });
+        }
+
+        // 显示所有权限
+        function showAllPermissions() {
+            renderPermissions(currentPermissions);
+        }
+
+        // 显示有效权限
+        function showActivePermissions() {
+            const active = currentPermissions.filter(p => getPermissionStatus(p) === 'active');
+            renderPermissions(active);
+        }
+
+        // 显示即将过期权限
+        function showExpiringPermissions() {
+            const expiring = currentPermissions.filter(p => getPermissionStatus(p) === 'expiring');
+            renderPermissions(expiring);
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadPermissions();
+        }
+    </script>
+</body>
+</html> 

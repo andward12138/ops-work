@@ -7,13 +7,8 @@
     <meta name="_csrf_header" th:content="${_csrf != null} ? ${_csrf.headerName} : ''"/>
     <title>工单列表 - 运维工单系统</title>
     <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
     <style>
-        body {
-            padding-top: 20px;
-        }
-        .container {
-            padding: 20px;
-        }
         .priority-high {
             color: #dc3545;
             font-weight: bold;
@@ -81,6 +76,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link active" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
                     </li>
                     <li class="nav-item" sec:authorize="hasRole('ADMIN')">
                         <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
