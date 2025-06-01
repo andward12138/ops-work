@@ -38,7 +38,7 @@ public class ApprovalRecordController {
 
     // 根据工单 ID 查询审批记录
     @GetMapping("/work-order/{workOrderId}")
-    public List<ApprovalRecord> getApprovalRecordsByWorkOrderId(@PathVariable Long workOrderId) {
+    public List<ApprovalRecord> getApprovalRecordsByWorkOrderId(@PathVariable Integer workOrderId) {
         return approvalRecordService.getApprovalRecordsByWorkOrderId(workOrderId);
     }
 
@@ -61,7 +61,7 @@ public class ApprovalRecordController {
             }
             
             // 获取工单
-            Long workOrderId = Long.valueOf(payload.get("workOrderId").toString());
+            Integer workOrderId = Integer.valueOf(payload.get("workOrderId").toString());
             Optional<WorkOrder> workOrderOpt = workOrderRepository.findByIdWithUsers(workOrderId);
             
             if (!workOrderOpt.isPresent()) {

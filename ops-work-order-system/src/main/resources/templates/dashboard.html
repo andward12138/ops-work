@@ -25,7 +25,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link active" href="#">控制面板</a>
+                        <a class="nav-link active" th:href="@{/dashboard}">控制面板</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
@@ -35,6 +35,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/statistics}">统计报表</a>
                     </li>
                     <li class="nav-item" sec:authorize="hasRole('ADMIN')">
                         <a class="nav-link" th:href="@{/admin/users}">用户管理</a>

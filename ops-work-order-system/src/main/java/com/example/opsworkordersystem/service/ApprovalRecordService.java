@@ -14,7 +14,7 @@ public class ApprovalRecordService {
     private ApprovalRecordRepository approvalRecordRepository;
 
     // 根据工单 ID 查找审批记录
-    public List<ApprovalRecord> getApprovalRecordsByWorkOrderId(Long workOrderId) {
+    public List<ApprovalRecord> getApprovalRecordsByWorkOrderId(Integer workOrderId) {
         return approvalRecordRepository.findByWorkOrderIdWithApprover(workOrderId);
     }
 

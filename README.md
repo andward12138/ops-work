@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-运维工单管理系统是一个基于Spring Boot的企业级运维管理平台，提供工单创建、多级审批、任务分配、进度跟踪等功能。系统实现了灵活的工作流引擎，支持自定义审批流程和自动化任务流转。
+运维工单管理系统是一个基于Spring Boot的企业级运维管理平台，提供工单创建、多级审批、任务分配、进度跟踪、统计分析等功能。系统实现了灵活的工作流引擎，支持自定义审批流程和自动化任务流转。
 
 ## 主要功能特性
 
@@ -17,14 +17,22 @@
 - **状态跟踪**：待处理、进行中、已完成、已拒绝、已超时等状态
 - **超时监控**：自动检测超时工单并更新状态
 
-### 3. 多层级审批工作流 ✨
+### 3. 多层级审批工作流 ✅
 - **可配置流程**：通过工作流模板定义审批流程
 - **并行/串行审批**：支持多人并行审批和顺序审批
 - **自动流转**：完成当前步骤后自动流转到下一步
 - **超时自动处理**：支持配置超时自动通过
 - **灵活分配**：基于角色和部门的任务自动分配
 
-### 4. 操作记录与审计
+### 4. 统计报表系统 ✅ **NEW!**
+- **每日统计报表**：工单处理趋势分析，支持日期范围筛选和图表展示
+- **每周汇总报表**：周度工单完成情况统计，包含详细的每日明细
+- **超时预警监控**：分级预警系统（轻微/严重/紧急），实时监控超时工单
+- **部门效率分析**：部门工单处理效率排行榜，综合评分和对比分析
+- **Excel导出功能**：所有报表支持Excel格式导出，便于数据分析
+- **可视化图表**：使用Chart.js实现多种图表类型（折线图、柱状图、饼图等）
+
+### 5. 操作记录与审计
 - **审批记录**：记录所有审批操作和意见
 - **操作日志**：追踪工单的所有状态变更
 - **时间记录**：记录每个步骤的开始和完成时间
@@ -39,11 +47,20 @@
 - **构建工具**：Maven
 - **Java版本**：Java 21
 
+### 前端技术栈
+- **模板引擎**：Thymeleaf
+- **UI框架**：Bootstrap 5
+- **图表库**：Chart.js
+- **图标库**：Bootstrap Icons
+- **JavaScript**：原生JavaScript + ES6
+
 ### 主要依赖
 - Spring Boot DevTools（热部署）
 - MySQL Connector
 - Jackson（JSON处理）
 - Spring Boot Actuator（监控）
+- Thymeleaf（模板引擎）
+- WebJars（前端依赖管理）
 
 ## 快速开始
 
@@ -126,6 +143,21 @@ mvn spring-boot:run
 - `POST /api/users` - 创建用户
 - `PUT /api/users/{id}` - 更新用户信息
 
+### 统计报表
+- `GET /statistics` - 统计报表主页
+- `GET /statistics/daily` - 每日统计报表页面
+- `GET /statistics/weekly` - 每周汇总报表页面
+- `GET /statistics/overdue` - 超时预警监控页面
+- `GET /statistics/department-efficiency` - 部门效率分析页面
+- `GET /statistics/api/daily` - 获取每日统计数据API
+- `GET /statistics/api/weekly` - 获取每周统计数据API
+- `GET /statistics/api/overdue` - 获取超时预警数据API
+- `GET /statistics/api/department-efficiency` - 获取部门效率数据API
+- `GET /statistics/export/daily` - 导出每日统计Excel
+- `GET /statistics/export/weekly` - 导出每周统计Excel
+- `GET /statistics/export/overdue` - 导出超时预警Excel
+- `GET /statistics/export/department-efficiency` - 导出部门效率Excel
+
 ## 工作流配置示例
 
 ### 标准运维工单流程
@@ -154,6 +186,13 @@ mvn spring-boot:run
 - **workflow_steps** - 工作流实例步骤表
 - **approval_records** - 审批记录表
 - **operation_records** - 操作记录表
+
+### 统计分析说明
+系统通过现有业务表动态计算统计数据，无需额外的统计表：
+- **每日统计**：基于work_orders表的创建时间和状态字段计算
+- **超时预警**：通过对比工单截止时间(deadline)与当前时间判断
+- **部门效率**：结合departments、users、work_orders表进行综合分析
+- **审批记录**：通过approval_records表追踪审批历史和耗时
 
 ## 定时任务
 
@@ -199,12 +238,20 @@ ops-work-order-system/
 
 ## 后续优化计划
 
-- [ ] 添加工单统计分析功能
+- [x] ~~添加工单统计分析功能~~ **✅ 已完成**
+  - [x] 每日工单流转统计
+  - [x] 每周完成情况报表
+  - [x] 超时预警统计
+  - [x] 部门效率分析
+  - [x] Excel导出功能
 - [ ] 实现工作流可视化设计器
 - [ ] 集成消息通知（邮件、短信、钉钉等）
 - [ ] 添加工单模板功能
 - [ ] 实现更复杂的审批条件（如金额限制、时间限制等）
 - [ ] 添加移动端支持
+- [ ] 工单派单/转派功能
+- [ ] 工单类型管理系统
+- [ ] 文件附件上传功能
 
 ## 许可证
 
@@ -215,4 +262,4 @@ ops-work-order-system/
 [添加联系方式]
 
 ---
-最后更新：2024-05-31
+最后更新：2025-06-01 - 新增统计报表系统功能

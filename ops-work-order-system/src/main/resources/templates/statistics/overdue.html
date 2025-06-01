@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超时预警 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        .overdue-card { border-left: 4px solid #dc3545; }
+        .warning-light { border-left: 4px solid #ffc107; }
+        .warning-severe { border-left: 4px solid #fd7e14; }
+        .warning-urgent { border-left: 4px solid #dc3545; }
+        .stat-card { transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); }
+        .priority-high { color: #dc3545; font-weight: bold; }
+        .priority-medium { color: #fd7e14; }
+        .priority-low { color: #198754; }
+        .overdue-hours { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/statistics}">统计报表</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 面包屑导航 -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a th:href="@{/statistics}">统计报表</a></li>
+                <li class="breadcrumb-item active">超时预警</li>
+            </ol>
+        </nav>
+
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2><i class="bi bi-clock-history me-2 text-warning"></i>超时预警监控</h2>
+                <p class="text-muted">实时监控超时工单，及时发现和处理延期任务</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-outline-primary" onclick="window.location.reload()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>刷新数据
+                </button>
+                <a th:href="@{/statistics/export/overdue}" class="btn btn-success" 
+                   th:if="${overdueWarnings != null and !overdueWarnings.empty}">
+                    <i class="bi bi-file-earmark-excel me-1"></i>导出Excel
+                </a>
+            </div>
+        </div>
+
+        <!-- 预警统计卡片 -->
+        <div class="row mb-4" th:if="${overdueWarnings != null}">
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card text-white bg-warning">
+                    <div class="card-body">
+                        <h6 class="card-title">轻微超时</h6>
+                        <h3 th:text="${mildCount}">0</h3>
+                        <small>1-12小时</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card text-white bg-danger">
+                    <div class="card-body">
+                        <h6 class="card-title">严重超时</h6>
+                        <h3 th:text="${severeCount}">0</h3>
+                        <small>12-24小时</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card text-white bg-dark">
+                    <div class="card-body">
+                        <h6 class="card-title">紧急超时</h6>
+                        <h3 th:text="${urgentCount}">0</h3>
+                        <small>超过24小时</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card text-white bg-info">
+                    <div class="card-body">
+                        <h6 class="card-title">总超时工单</h6>
+                        <h3 th:text="${totalCount}">0</h3>
+                        <small>需要立即处理</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 预警级别说明 -->
+        <div class="alert alert-info mb-4">
+            <h6><i class="bi bi-info-circle me-2"></i>预警级别说明</h6>
+            <div class="row">
+                <div class="col-md-4">
+                    <span class="badge bg-warning me-2">轻微</span>超时1-12小时，建议尽快处理
+                </div>
+                <div class="col-md-4">
+                    <span class="badge bg-danger me-2">严重</span>超时12-24小时，需要优先处理
+                </div>
+                <div class="col-md-4">
+                    <span class="badge bg-dark me-2">紧急</span>超时超过24小时，需要立即处理
+                </div>
+            </div>
+        </div>
+
+        <!-- 超时工单列表 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>超时工单详情</h5>
+            </div>
+            <div class="card-body">
+                <div th:if="${overdueWarnings != null and !overdueWarnings.empty}">
+                    <!-- 按预警级别分组显示 -->
+                    <div th:each="level : ${'紧急', '严重', '轻微'}" class="mb-4">
+                        <!-- 紧急级别 -->
+                        <h6 th:if="${level == '紧急' and urgentCount > 0}" class="text-dark">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <span th:text="${level}">级别</span>预警 
+                            (<span th:text="${urgentCount}">0</span>个)
+                        </h6>
+                        <!-- 严重级别 -->
+                        <h6 th:if="${level == '严重' and severeCount > 0}" class="text-danger">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <span th:text="${level}">级别</span>预警 
+                            (<span th:text="${severeCount}">0</span>个)
+                        </h6>
+                        <!-- 轻微级别 -->
+                        <h6 th:if="${level == '轻微' and mildCount > 0}" class="text-warning">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <span th:text="${level}">级别</span>预警 
+                            (<span th:text="${mildCount}">0</span>个)
+                        </h6>
+                        
+                        <div th:each="warning : ${overdueWarnings}" 
+                             th:if="${warning.warningLevel == level}"
+                             class="card mb-3"
+                             th:classappend="${warning.warningLevel == '轻微'} ? 'warning-light' : 
+                                           (${warning.warningLevel == '严重'} ? 'warning-severe' : 'warning-urgent')">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-4">
+                                        <h6 class="card-title mb-1">
+                                            <a th:href="@{'/work-orders/' + ${warning.workOrderId}}" 
+                                               class="text-decoration-none">
+                                                工单 #<span th:text="${warning.workOrderId}">1</span>
+                                            </a>
+                                        </h6>
+                                        <p class="text-muted mb-1" th:text="${warning.title}">工单标题</p>
+                                        <small class="text-muted">
+                                            部门: <span th:text="${warning.departmentName}">未知部门</span>
+                                        </small>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <span class="badge rounded-pill" 
+                                              th:classappend="${warning.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH} ? 'bg-danger' : 
+                                                             (${warning.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM} ? 'bg-warning' : 'bg-success')"
+                                              th:text="${warning.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH} ? '高' : 
+                                                       (${warning.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM} ? '中' : '低')">
+                                            优先级
+                                        </span>
+                                        <br>
+                                        <small class="text-muted">优先级</small>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <span class="badge" 
+                                              th:classappend="${warning.status == T(com.example.opsworkordersystem.entity.Status).PENDING} ? 'bg-info' : 
+                                                             (${warning.status == T(com.example.opsworkordersystem.entity.Status).IN_PROGRESS} ? 'bg-warning' : 'bg-secondary')"
+                                              th:text="${warning.status == T(com.example.opsworkordersystem.entity.Status).PENDING} ? '待处理' : 
+                                                       (${warning.status == T(com.example.opsworkordersystem.entity.Status).IN_PROGRESS} ? '处理中' : '其他')">
+                                            状态
+                                        </span>
+                                        <br>
+                                        <small class="text-muted">当前状态</small>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <span class="overdue-hours" 
+                                              th:classappend="${warning.warningLevel == '紧急'} ? 'text-dark' : 
+                                                             (${warning.warningLevel == '严重'} ? 'text-danger' : 'text-warning')"
+                                              th:text="${warning.overdueHours} + 'h'">0h</span>
+                                        <br>
+                                        <small class="text-muted">已超时</small>
+                                    </div>
+                                    <div class="col-md-2 text-end">
+                                        <a th:href="@{'/work-orders/' + ${warning.workOrderId}}" 
+                                           class="btn btn-sm btn-primary">
+                                            <i class="bi bi-eye"></i> 查看
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-md-6">
+                                        <small class="text-muted">
+                                            <i class="bi bi-person me-1"></i>
+                                            分配给: <span th:text="${warning.assignedToName}">未分配</span>
+                                        </small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <small class="text-muted">
+                                            <i class="bi bi-calendar me-1"></i>
+                                            截止: <span th:text="${#temporals.format(warning.deadline, 'MM-dd HH:mm')}">--</span>
+                                        </small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <small class="text-muted">
+                                            <i class="bi bi-clock me-1"></i>
+                                            创建: <span th:text="${#temporals.format(warning.createdAt, 'MM-dd HH:mm')}">--</span>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 无数据提示 -->
+                <div class="text-center" th:if="${overdueWarnings == null or overdueWarnings.empty}">
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle me-2"></i>
+                        <strong>太好了！</strong> 当前没有超时的工单需要处理
+                    </div>
+                    <div class="mt-3">
+                        <img src="/images/no-overdue.svg" alt="无超时工单" style="width: 200px; opacity: 0.6;" th:if="false">
+                        <p class="text-muted mt-3">所有工单都在按时处理中，继续保持！</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作建议 -->
+        <div class="card mt-4" th:if="${overdueWarnings != null and !overdueWarnings.empty}">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-lightbulb me-2"></i>处理建议</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="text-dark">紧急超时工单</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="bi bi-arrow-right me-1"></i>立即联系相关负责人</li>
+                            <li><i class="bi bi-arrow-right me-1"></i>评估是否需要升级处理</li>
+                            <li><i class="bi bi-arrow-right me-1"></i>考虑重新分配或增加资源</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-danger">严重超时工单</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="bi bi-arrow-right me-1"></i>检查处理进度和障碍</li>
+                            <li><i class="bi bi-arrow-right me-1"></i>提供必要的支持和资源</li>
+                            <li><i class="bi bi-arrow-right me-1"></i>设置更频繁的跟进计划</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-warning">轻微超时工单</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="bi bi-arrow-right me-1"></i>发送提醒通知</li>
+                            <li><i class="bi bi-arrow-right me-1"></i>了解延期原因</li>
+                            <li><i class="bi bi-arrow-right me-1"></i>调整后续工作计划</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        // 每30秒自动刷新预警数据
+        setTimeout(function() {
+            window.location.reload();
+        }, 30000);
+
+        // 添加实时时间显示
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeString = now.toLocaleString('zh-CN');
+            document.title = `超时预警 (${timeString}) - 运维工单系统`;
+        }
+        
+        // 每秒更新时间
+        setInterval(updateCurrentTime, 1000);
+        updateCurrentTime();
+    </script>
+</body>
+</html> 

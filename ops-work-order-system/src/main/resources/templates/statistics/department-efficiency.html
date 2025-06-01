@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>部门效率分析 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container { height: 400px; }
+        .efficiency-card { transition: transform 0.2s; }
+        .efficiency-card:hover { transform: translateY(-2px); }
+        .rank-1 { border-left: 4px solid #ffd700; }
+        .rank-2 { border-left: 4px solid #c0c0c0; }
+        .rank-3 { border-left: 4px solid #cd7f32; }
+        .rank-other { border-left: 4px solid #6c757d; }
+        .efficiency-excellent { color: #198754; font-weight: bold; }
+        .efficiency-good { color: #0d6efd; }
+        .efficiency-average { color: #fd7e14; }
+        .efficiency-poor { color: #dc3545; }
+        .progress-thin { height: 8px; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/statistics}">统计报表</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 面包屑导航 -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a th:href="@{/statistics}">统计报表</a></li>
+                <li class="breadcrumb-item active">部门效率分析</li>
+            </ol>
+        </nav>
+
+        <!-- 页面标题和日期选择器 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2><i class="bi bi-graph-up-arrow me-2"></i>部门效率分析</h2>
+                <p class="text-muted">分析各部门工单处理效率，识别优秀实践和改进机会</p>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <form method="get" th:action="@{/statistics/department-efficiency}">
+                            <div class="row g-2">
+                                <div class="col-md-5">
+                                    <label class="form-label small">开始日期</label>
+                                    <input type="date" class="form-control form-control-sm" name="startDate" 
+                                           th:value="${startDate}" required>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label small">结束日期</label>
+                                    <input type="date" class="form-control form-control-sm" name="endDate" 
+                                           th:value="${endDate}" required>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary btn-sm">查询</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 整体统计概览 -->
+        <div class="row mb-4" th:if="${efficiencyStats != null and !efficiencyStats.empty}">
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-success">
+                    <div class="card-body">
+                        <h6 class="card-title">优秀部门</h6>
+                        <h3 th:text="${#lists.size(#lists.select(efficiencyStats, 'efficiency >= 90'))}">0</h3>
+                        <small>效率 ≥ 90%</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-primary">
+                    <div class="card-body">
+                        <h6 class="card-title">良好部门</h6>
+                        <h3 th:text="${#lists.size(#lists.select(efficiencyStats, 'efficiency >= 80 and efficiency < 90'))}">0</h3>
+                        <small>80% ≤ 效率 < 90%</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-warning">
+                    <div class="card-body">
+                        <h6 class="card-title">一般部门</h6>
+                        <h3 th:text="${#lists.size(#lists.select(efficiencyStats, 'efficiency >= 70 and efficiency < 80'))}">0</h3>
+                        <small>70% ≤ 效率 < 80%</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-danger">
+                    <div class="card-body">
+                        <h6 class="card-title">待改进部门</h6>
+                        <h3 th:text="${#lists.size(#lists.select(efficiencyStats, 'efficiency < 70'))}">0</h3>
+                        <small>效率 < 70%</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 效率图表 -->
+        <div class="row mb-4" th:if="${efficiencyStats != null and !efficiencyStats.empty}">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>部门效率对比</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="efficiencyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>效率分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="distributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 部门效率排行榜 -->
+        <div class="card mb-4" th:if="${efficiencyStats != null and !efficiencyStats.empty}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-trophy me-2"></i>部门效率排行榜</h5>
+                <a th:href="@{'/statistics/export/department-efficiency?startDate=' + ${startDate} + '&endDate=' + ${endDate}}" 
+                   class="btn btn-success btn-sm">
+                    <i class="bi bi-file-earmark-excel me-1"></i>导出Excel
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-4" th:each="dept, iterStat : ${efficiencyStats}">
+                        <div class="card efficiency-card"
+                             th:classappend="${iterStat.index == 0} ? 'rank-1' : 
+                                           (${iterStat.index == 1} ? 'rank-2' : 
+                                           (${iterStat.index == 2} ? 'rank-3' : 'rank-other'))">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <h6 class="card-title mb-1">
+                                            <span class="badge rounded-pill me-2"
+                                                  th:classappend="${iterStat.index == 0} ? 'bg-warning' : 
+                                                                 (${iterStat.index == 1} ? 'bg-secondary' : 
+                                                                 (${iterStat.index == 2} ? 'bg-warning text-dark' : 'bg-light text-dark'))"
+                                                  th:text="${iterStat.index + 1}">1</span>
+                                            <span th:text="${dept.departmentName}">部门名称</span>
+                                        </h6>
+                                        <p class="text-muted mb-0 small">
+                                            工单总数: <span th:text="${dept.totalWorkOrders}">0</span> | 
+                                            已完成: <span th:text="${dept.completedCount}">0</span>
+                                        </p>
+                                    </div>
+                                    <div class="text-end">
+                                        <h5 class="mb-1" 
+                                            th:classappend="${dept.efficiency >= 90} ? 'efficiency-excellent' : 
+                                                           (${dept.efficiency >= 80} ? 'efficiency-good' : 
+                                                           (${dept.efficiency >= 70} ? 'efficiency-average' : 'efficiency-poor'))"
+                                            th:text="${#numbers.formatDecimal(dept.efficiency, 1, 1)} + '%'">0.0%</h5>
+                                        <small class="text-muted">效率指数</small>
+                                    </div>
+                                </div>
+                                
+                                <!-- 效率进度条 -->
+                                <div class="progress progress-thin mb-2">
+                                    <div class="progress-bar" 
+                                         th:classappend="${dept.efficiency >= 90} ? 'bg-success' : 
+                                                        (${dept.efficiency >= 80} ? 'bg-primary' : 
+                                                        (${dept.efficiency >= 70} ? 'bg-warning' : 'bg-danger'))"
+                                         role="progressbar" 
+                                         th:style="'width: ' + ${dept.efficiency} + '%'"
+                                         th:aria-valuenow="${dept.efficiency}">
+                                    </div>
+                                </div>
+                                
+                                <!-- 详细指标 -->
+                                <div class="row small">
+                                    <div class="col-6">
+                                        <div class="d-flex justify-content-between">
+                                            <span>完成率:</span>
+                                            <span class="fw-bold" th:text="${#numbers.formatDecimal(dept.completionRate, 1, 1)} + '%'">0.0%</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>及时率:</span>
+                                            <span class="fw-bold" th:text="${#numbers.formatDecimal(dept.onTimeRate, 1, 1)} + '%'">0.0%</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="d-flex justify-content-between">
+                                            <span>平均时长:</span>
+                                            <span class="fw-bold" th:text="${dept.averageProcessingHours != null ? #numbers.formatDecimal(dept.averageProcessingHours, 1, 1) + 'h' : '-'}">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>质量评分:</span>
+                                            <span class="fw-bold" th:text="${#numbers.formatDecimal(dept.qualityScore, 1, 1)}">0.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 部门标签 -->
+                                <div class="mt-2">
+                                    <span th:if="${dept.efficiency >= 90}" class="badge bg-success">🏆 优秀</span>
+                                    <span th:if="${dept.efficiency >= 80 && dept.efficiency < 90}" class="badge bg-primary">👍 良好</span>
+                                    <span th:if="${dept.efficiency >= 70 && dept.efficiency < 80}" class="badge bg-warning">⚠️ 一般</span>
+                                    <span th:if="${dept.efficiency < 70}" class="badge bg-danger">📈 待改进</span>
+                                    
+                                    <span th:if="${iterStat.index == 0}" class="badge bg-warning text-dark ms-1">🥇 冠军</span>
+                                    <span th:if="${iterStat.index == 1}" class="badge bg-secondary ms-1">🥈 亚军</span>
+                                    <span th:if="${iterStat.index == 2}" class="badge bg-warning text-dark ms-1">🥉 季军</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 效率分析说明 -->
+        <div class="card" th:if="${efficiencyStats != null and !efficiencyStats.empty}">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>效率计算说明</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>评分算法</h6>
+                        <ul class="list-unstyled">
+                            <li>• <strong>完成率</strong> (40%权重): 已完成工单 / 总工单数</li>
+                            <li>• <strong>及时率</strong> (30%权重): 按时完成工单 / 已完成工单</li>
+                            <li>• <strong>处理速度</strong> (20%权重): 基于平均处理时间计算</li>
+                            <li>• <strong>质量评分</strong> (10%权重): 基于返工率和客户满意度</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>等级标准</h6>
+                        <ul class="list-unstyled">
+                            <li><span class="badge bg-success me-2">优秀</span> 效率指数 ≥ 90%，行业领先水平</li>
+                            <li><span class="badge bg-primary me-2">良好</span> 80% ≤ 效率指数 < 90%，表现良好</li>
+                            <li><span class="badge bg-warning me-2">一般</span> 70% ≤ 效率指数 < 80%，符合标准</li>
+                            <li><span class="badge bg-danger me-2">待改进</span> 效率指数 < 70%，需要重点关注</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 无数据提示 -->
+        <div class="text-center" th:if="${efficiencyStats == null or efficiencyStats.empty}">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                所选日期范围内暂无部门效率数据
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script th:inline="javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            const efficiencyStats = /*[[${efficiencyStats}]]*/ [];
+            
+            if (efficiencyStats && efficiencyStats.length > 0) {
+                // 效率对比柱状图
+                const ctx1 = document.getElementById('efficiencyChart').getContext('2d');
+                const departmentNames = efficiencyStats.map(dept => dept.departmentName);
+                const efficiencyData = efficiencyStats.map(dept => dept.efficiency);
+                const completionRateData = efficiencyStats.map(dept => dept.completionRate);
+                const onTimeRateData = efficiencyStats.map(dept => dept.onTimeRate);
+                
+                new Chart(ctx1, {
+                    type: 'bar',
+                    data: {
+                        labels: departmentNames,
+                        datasets: [{
+                            label: '效率指数',
+                            data: efficiencyData,
+                            backgroundColor: efficiencyData.map(value => 
+                                value >= 90 ? 'rgba(25, 135, 84, 0.8)' :
+                                value >= 80 ? 'rgba(13, 110, 253, 0.8)' :
+                                value >= 70 ? 'rgba(255, 193, 7, 0.8)' :
+                                'rgba(220, 53, 69, 0.8)'
+                            ),
+                            borderColor: efficiencyData.map(value => 
+                                value >= 90 ? 'rgba(25, 135, 84, 1)' :
+                                value >= 80 ? 'rgba(13, 110, 253, 1)' :
+                                value >= 70 ? 'rgba(255, 193, 7, 1)' :
+                                'rgba(220, 53, 69, 1)'
+                            ),
+                            borderWidth: 1
+                        }, {
+                            label: '完成率',
+                            data: completionRateData,
+                            type: 'line',
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            tension: 0.1,
+                            yAxisID: 'y1'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: '部门效率综合对比'
+                            },
+                            legend: {
+                                position: 'top',
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: '效率指数 (%)'
+                                }
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: false,
+                                position: 'right',
+                                beginAtZero: true,
+                                max: 100
+                            }
+                        }
+                    }
+                });
+
+                // 效率分布饼图
+                const ctx2 = document.getElementById('distributionChart').getContext('2d');
+                const excellentCount = efficiencyStats.filter(dept => dept.efficiency >= 90).length;
+                const goodCount = efficiencyStats.filter(dept => dept.efficiency >= 80 && dept.efficiency < 90).length;
+                const averageCount = efficiencyStats.filter(dept => dept.efficiency >= 70 && dept.efficiency < 80).length;
+                const poorCount = efficiencyStats.filter(dept => dept.efficiency < 70).length;
+                
+                new Chart(ctx2, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['优秀 (≥90%)', '良好 (80-89%)', '一般 (70-79%)', '待改进 (<70%)'],
+                        datasets: [{
+                            data: [excellentCount, goodCount, averageCount, poorCount],
+                            backgroundColor: [
+                                'rgba(25, 135, 84, 0.8)',
+                                'rgba(13, 110, 253, 0.8)',
+                                'rgba(255, 193, 7, 0.8)',
+                                'rgba(220, 53, 69, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(25, 135, 84, 1)',
+                                'rgba(13, 110, 253, 1)',
+                                'rgba(255, 193, 7, 1)',
+                                'rgba(220, 53, 69, 1)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: '部门效率等级分布'
+                            },
+                            legend: {
+                                position: 'bottom',
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html> 

@@ -40,6 +40,9 @@
                     <li class="nav-item">
                         <a class="nav-link" th:href="@{/workflow}">工作流管理</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/statistics}">统计报表</a>
+                    </li>
                     <li class="nav-item" sec:authorize="hasRole('ADMIN')">
                         <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
                     </li>
@@ -191,6 +194,66 @@
         </div>
     </div>
 
+    <!-- 编辑部门模态框 -->
+    <div class="modal fade" id="editDepartmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑部门</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editDepartmentForm">
+                        <input type="hidden" name="id" id="editDepartmentId">
+                        <div class="mb-3">
+                            <label class="form-label">部门名称 *</label>
+                            <input type="text" class="form-control" name="name" id="editDepartmentName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">部门编码</label>
+                            <input type="text" class="form-control" name="code" id="editDepartmentCode">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">上级部门</label>
+                            <select class="form-select" name="parentId" id="editParentDepartmentSelect">
+                                <option value="">无（顶级部门）</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">部门类型</label>
+                            <select class="form-select" name="type" id="editDepartmentType">
+                                <option value="PROVINCIAL">省级部门</option>
+                                <option value="MUNICIPAL">市级部门</option>
+                                <option value="COUNTY">县级部门</option>
+                                <option value="OPERATIONAL">运维部门</option>
+                                <option value="BUSINESS">业务部门</option>
+                                <option value="SUPPORT">支撑部门</option>
+                                <option value="TECHNICAL">技术部门</option>
+                                <option value="ADMINISTRATIVE">行政部门</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">联系人</label>
+                            <input type="text" class="form-control" name="contactPerson" id="editContactPerson">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">联系电话</label>
+                            <input type="text" class="form-control" name="contactPhone" id="editContactPhone">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">描述</label>
+                            <textarea class="form-control" name="description" id="editDepartmentDescription" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="updateDepartment()">确认更新</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript -->
     <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
     <script>
@@ -305,8 +368,36 @@
 
         // 编辑部门
         function editDepartment(departmentId) {
-            // TODO: 实现编辑功能
-            alert('编辑功能开发中...');
+            // 获取部门详情
+            fetch(`/api/departments/${departmentId}`)
+                .then(response => response.json())
+                .then(department => {
+                    // 填充编辑表单
+                    document.getElementById('editDepartmentId').value = department.id;
+                    document.getElementById('editDepartmentName').value = department.name || '';
+                    document.getElementById('editDepartmentCode').value = department.code || '';
+                    document.getElementById('editDepartmentType').value = department.type || '';
+                    document.getElementById('editContactPerson').value = department.contactPerson || '';
+                    document.getElementById('editContactPhone').value = department.contactPhone || '';
+                    document.getElementById('editDepartmentDescription').value = department.description || '';
+                    
+                    // 设置上级部门
+                    if (department.parent && department.parent.id) {
+                        document.getElementById('editParentDepartmentSelect').value = department.parent.id;
+                    } else {
+                        document.getElementById('editParentDepartmentSelect').value = '';
+                    }
+                    
+                    // 加载上级部门选项（排除当前部门及其子部门）
+                    loadEditParentDepartments(departmentId);
+                    
+                    // 显示编辑模态框
+                    new bootstrap.Modal(document.getElementById('editDepartmentModal')).show();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('获取部门信息失败');
+                });
         }
 
         // 删除部门
@@ -390,6 +481,85 @@
             .catch(error => {
                 console.error('Error:', error);
                 alert('添加失败');
+            });
+        }
+
+        // 加载编辑时的上级部门选项
+        function loadEditParentDepartments(currentDepartmentId) {
+            fetch('/api/departments')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.getElementById('editParentDepartmentSelect');
+                    // 清空现有选项
+                    select.innerHTML = '<option value="">无（顶级部门）</option>';
+                    
+                    // 过滤掉当前部门及其子部门，防止循环引用
+                    const filteredDepts = data.filter(dept => 
+                        dept.id != currentDepartmentId && 
+                        !isDescendantOf(dept, currentDepartmentId, data)
+                    );
+                    
+                    filteredDepts.forEach(dept => {
+                        const option = document.createElement('option');
+                        option.value = dept.id;
+                        option.textContent = dept.name;
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading parent departments:', error);
+                });
+        }
+
+        // 检查部门是否是某个部门的子部门
+        function isDescendantOf(dept, parentId, allDepts) {
+            if (!dept.parent) return false;
+            if (dept.parent.id == parentId) return true;
+            
+            const parent = allDepts.find(d => d.id == dept.parent.id);
+            if (parent) {
+                return isDescendantOf(parent, parentId, allDepts);
+            }
+            return false;
+        }
+
+        // 更新部门
+        function updateDepartment() {
+            const form = document.getElementById('editDepartmentForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            const departmentId = data.id;
+            
+            // 处理parentId
+            if (data.parentId === '') {
+                delete data.parentId;
+            } else {
+                data.parent = { id: parseInt(data.parentId) };
+            }
+            delete data.parentId;
+            delete data.id;
+
+            fetch(`/api/departments/${departmentId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('editDepartmentModal')).hide();
+                    loadDepartments();
+                    alert('更新成功');
+                } else {
+                    response.text().then(text => {
+                        alert('更新失败: ' + text);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('更新失败');
             });
         }
     </script>

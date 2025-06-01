@@ -98,7 +98,7 @@ public class WorkOrderController {
     
     // 显示工单详情页面
     @GetMapping("/{id}")
-    public String getWorkOrderDetails(@PathVariable Long id, Model model) {
+    public String getWorkOrderDetails(@PathVariable Integer id, Model model) {
         Optional<WorkOrder> workOrderOpt = workOrderService.getWorkOrderById(id);
         
         if (workOrderOpt.isPresent()) {
@@ -212,7 +212,7 @@ public class WorkOrderController {
     @PutMapping("/api/{id}/status")
     @ResponseBody
     public ResponseEntity<WorkOrder> updateWorkOrderStatus(
-            @PathVariable Long id, 
+            @PathVariable Integer id, 
             @RequestBody Map<String, String> request) {
         
         String statusStr = request.get("status");
@@ -246,7 +246,7 @@ public class WorkOrderController {
     // API 根据创建人查询工单
     @GetMapping("/api/creator/{createdById}")
     @ResponseBody
-    public List<WorkOrder> getWorkOrdersByCreator(@PathVariable Long createdById) {
+    public List<WorkOrder> getWorkOrdersByCreator(@PathVariable Integer createdById) {
         return workOrderService.getWorkOrdersByCreator(createdById);
     }
 }

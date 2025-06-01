@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日统计 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container { height: 400px; }
+        .stat-card { transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/statistics}">统计报表</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 面包屑导航 -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a th:href="@{/statistics}">统计报表</a></li>
+                <li class="breadcrumb-item active">每日统计</li>
+            </ol>
+        </nav>
+
+        <!-- 页面标题和日期选择器 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2><i class="bi bi-calendar-day me-2"></i>每日统计报表</h2>
+                <p class="text-muted">查看每日工单处理统计数据和趋势分析</p>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <form method="get" th:action="@{/statistics/daily}">
+                            <div class="row g-2">
+                                <div class="col-md-5">
+                                    <label class="form-label small">开始日期</label>
+                                    <input type="date" class="form-control form-control-sm" name="startDate" 
+                                           th:value="${startDate}" required>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label small">结束日期</label>
+                                    <input type="date" class="form-control form-control-sm" name="endDate" 
+                                           th:value="${endDate}" required>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary btn-sm">查询</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 汇总统计卡片 -->
+        <div class="row mb-4" th:if="${dailyStats != null and !dailyStats.empty}">
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card text-white bg-primary">
+                    <div class="card-body">
+                        <h6 class="card-title">总工单数</h6>
+                        <h3 th:text="${#aggregates.sum(dailyStats.![totalWorkOrders])}">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card text-white bg-success">
+                    <div class="card-body">
+                        <h6 class="card-title">已完成</h6>
+                        <h3 th:text="${#aggregates.sum(dailyStats.![completedCount])}">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card text-white bg-warning">
+                    <div class="card-body">
+                        <h6 class="card-title">平均完成率</h6>
+                        <h3>
+                            <span th:if="${dailyStats.size() > 0}" 
+                                  th:text="${#numbers.formatDecimal(#aggregates.avg(dailyStats.![completionRate]), 1, 2)} + '%'">0.00%</span>
+                            <span th:if="${dailyStats.size() == 0}">0.00%</span>
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card text-white bg-info">
+                    <div class="card-body">
+                        <h6 class="card-title">统计天数</h6>
+                        <h3 th:text="${dailyStats.size()}">0</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表 -->
+        <div class="row mb-4" th:if="${dailyStats != null and !dailyStats.empty}">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>每日工单趋势图</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="dailyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 详细数据表格 -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-table me-2"></i>详细统计数据</h5>
+                <div>
+                    <a th:href="@{'/statistics/export/daily?startDate=' + ${startDate} + '&endDate=' + ${endDate}}" 
+                       class="btn btn-success btn-sm" th:if="${dailyStats != null and !dailyStats.empty}">
+                        <i class="bi bi-file-earmark-excel me-1"></i>导出Excel
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive" th:if="${dailyStats != null and !dailyStats.empty}">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>总工单数</th>
+                                <th>新建工单</th>
+                                <th>已完成</th>
+                                <th>处理中</th>
+                                <th>待处理</th>
+                                <th>已拒绝</th>
+                                <th>完成率</th>
+                                <th>平均处理时间(小时)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="stat : ${dailyStats}">
+                                <td th:text="${#temporals.format(stat.date, 'yyyy-MM-dd')}">2024-01-01</td>
+                                <td th:text="${stat.totalWorkOrders}">0</td>
+                                <td th:text="${stat.newCount}">0</td>
+                                <td class="text-success fw-bold" th:text="${stat.completedCount}">0</td>
+                                <td class="text-warning" th:text="${stat.inProgressCount}">0</td>
+                                <td class="text-info" th:text="${stat.pendingCount}">0</td>
+                                <td class="text-danger" th:text="${stat.rejectedCount}">0</td>
+                                <td>
+                                    <span th:classappend="${stat.completionRate >= 80} ? 'text-success fw-bold' : 
+                                                         (${stat.completionRate >= 60} ? 'text-warning' : 'text-danger')"
+                                          th:text="${#numbers.formatDecimal(stat.completionRate, 1, 2)} + '%'">0.00%</span>
+                                </td>
+                                <td th:text="${stat.averageProcessingHours != null ? #numbers.formatDecimal(stat.averageProcessingHours, 1, 2) : '-'}">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center" th:if="${dailyStats == null or dailyStats.empty}">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        所选日期范围内暂无统计数据
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script th:inline="javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            const dailyStats = /*[[${dailyStats}]]*/ [];
+            
+            if (dailyStats && dailyStats.length > 0) {
+                const ctx = document.getElementById('dailyChart').getContext('2d');
+                
+                const labels = dailyStats.map(stat => {
+                    const date = new Date(stat.date);
+                    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+                });
+                
+                const totalData = dailyStats.map(stat => stat.totalWorkOrders);
+                const completedData = dailyStats.map(stat => stat.completedCount);
+                const newData = dailyStats.map(stat => stat.newCount);
+                const completionRateData = dailyStats.map(stat => stat.completionRate);
+                
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '总工单数',
+                            data: totalData,
+                            borderColor: 'rgb(54, 162, 235)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        }, {
+                            label: '已完成',
+                            data: completedData,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        }, {
+                            label: '新建工单',
+                            data: newData,
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        }, {
+                            label: '完成率 (%)',
+                            data: completionRateData,
+                            borderColor: 'rgb(153, 102, 255)',
+                            backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                            tension: 0.1,
+                            type: 'line',
+                            yAxisID: 'y1'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: '每日工单统计趋势'
+                            },
+                            legend: {
+                                position: 'top',
+                            }
+                        },
+                        scales: {
+                            x: {
+                                display: true,
+                                title: {
+                                    display: true,
+                                    text: '日期'
+                                }
+                            },
+                            y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: {
+                                    display: true,
+                                    text: '工单数量'
+                                },
+                                beginAtZero: true
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                title: {
+                                    display: true,
+                                    text: '完成率 (%)'
+                                },
+                                beginAtZero: true,
+                                max: 100,
+                                grid: {
+                                    drawOnChartArea: false,
+                                },
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html> 

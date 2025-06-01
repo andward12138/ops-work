@@ -14,12 +14,12 @@ public class OperationRecordService {
     private OperationRecordRepository operationRecordRepository;
 
     // 根据工单 ID 查找操作记录
-    public List<OperationRecord> getOperationRecordsByWorkOrderId(Long workOrderId) {
+    public List<OperationRecord> getOperationRecordsByWorkOrderId(Integer workOrderId) {
         return operationRecordRepository.findByWorkOrderIdWithOperator(workOrderId);
     }
 
     // 根据操作人 ID 查找操作记录
-    public List<OperationRecord> getOperationRecordsByOperatorId(Long operatorId) {
+    public List<OperationRecord> getOperationRecordsByOperatorId(Integer operatorId) {
         return operationRecordRepository.findByOperatorId(operatorId);
     }
 

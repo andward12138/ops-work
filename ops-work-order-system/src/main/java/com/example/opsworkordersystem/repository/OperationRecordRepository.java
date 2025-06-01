@@ -10,12 +10,12 @@ import java.util.List;
 @Repository
 public interface OperationRecordRepository extends JpaRepository<OperationRecord, Long> {
     // 根据工单 ID 查找操作记录
-    List<OperationRecord> findByWorkOrderId(Long workOrderId);
+    List<OperationRecord> findByWorkOrderId(Integer workOrderId);
 
     // 根据操作人 ID 查找操作记录
-    List<OperationRecord> findByOperatorId(Long operatorId);
+    List<OperationRecord> findByOperatorId(Integer operatorId);
     
     // 预加载操作人的查询
     @Query("SELECT o FROM OperationRecord o LEFT JOIN FETCH o.operator WHERE o.workOrder.id = ?1")
-    List<OperationRecord> findByWorkOrderIdWithOperator(Long workOrderId);
+    List<OperationRecord> findByWorkOrderIdWithOperator(Integer workOrderId);
 }

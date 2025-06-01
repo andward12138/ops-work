@@ -91,7 +91,7 @@ public class WorkOrderService {
         }
         
         // 使用预加载的查询方法获取完整的工单（包括关联关系）
-        return workOrderRepository.findSavedWorkOrderById(savedWorkOrder.getId().longValue())
+        return workOrderRepository.findSavedWorkOrderById(savedWorkOrder.getId())
                 .orElse(savedWorkOrder);
     }
 
@@ -101,12 +101,12 @@ public class WorkOrderService {
     }
 
     // 根据创建人查询工单
-    public List<WorkOrder> getWorkOrdersByCreator(Long createdById) {
+    public List<WorkOrder> getWorkOrdersByCreator(Integer createdById) {
         return workOrderRepository.findByCreatedById(createdById);
     }
     
     // 根据ID获取工单详情
-    public Optional<WorkOrder> getWorkOrderById(Long id) {
+    public Optional<WorkOrder> getWorkOrderById(Integer id) {
         return workOrderRepository.findByIdWithUsers(id);
     }
     
@@ -116,7 +116,7 @@ public class WorkOrderService {
     }
     
     // 更新工单状态
-    public WorkOrder updateWorkOrderStatus(Long id, Status status) {
+    public WorkOrder updateWorkOrderStatus(Integer id, Status status) {
         Optional<WorkOrder> workOrderOpt = workOrderRepository.findByIdWithUsers(id);
         if (workOrderOpt.isPresent()) {
             WorkOrder workOrder = workOrderOpt.get();
@@ -133,7 +133,7 @@ public class WorkOrderService {
         Optional<User> userOpt = userRepository.findByUsername(username);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
-            return workOrderRepository.findByAssignedToIdAndStatus(user.getId().longValue(), status);
+            return workOrderRepository.findByAssignedToIdAndStatus(user.getId(), status);
         }
         return Collections.emptyList();
     }
