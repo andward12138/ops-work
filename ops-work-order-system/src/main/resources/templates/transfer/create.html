@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf != null} ? ${_csrf.token} : ''"/>
+    <meta name="_csrf_header" th:content="${_csrf != null} ? ${_csrf.headerName} : ''"/>
+    <title>创建转派 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <style>
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+        .step {
+            flex: 1;
+            text-align: center;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin: 0 5px;
+            border: 1px solid #dee2e6;
+        }
+        .step.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        .step.completed {
+            background: #28a745;
+            color: white;
+            border-color: #28a745;
+        }
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-bottom: 5px;
+            background: rgba(255,255,255,0.2);
+        }
+        .transfer-type-card {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #fff;
+            text-align: center;
+        }
+        .transfer-type-card:hover {
+            border-color: #007bff;
+            background: #f8f9fa;
+        }
+        .transfer-type-card.selected {
+            border-color: #007bff;
+            background: #e3f2fd;
+        }
+        .transfer-type-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        .target-selection {
+            display: none;
+        }
+        .target-selection.active {
+            display: block;
+        }
+        .confirmation-card {
+            background: #f8f9fa;
+            border: 1px solid #28a745;
+            border-radius: 4px;
+            padding: 1rem;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .loading-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 4px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/transfer}">转派管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/statistics}">统计报表</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 错误提示 -->
+        <div th:if="${error}" class="alert alert-danger mb-4" role="alert">
+            <span th:text="${error}">错误信息</span>
+        </div>
+
+        <!-- 页面标题 -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>创建转派</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/dashboard" class="text-decoration-none">控制面板</a></li>
+                        <li class="breadcrumb-item"><a href="/transfer" class="text-decoration-none">转派管理</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">创建转派</li>
+                    </ol>
+                </nav>
+            </div>
+            <div>
+                <a href="/transfer" class="btn btn-outline-secondary">返回</a>
+            </div>
+        </div>
+
+        <!-- 步骤指示器 -->
+        <div class="step-indicator">
+            <div class="step active" id="step1">
+                <div class="step-number">1</div>
+                <div class="fw-bold">选择转派类型</div>
+            </div>
+            <div class="step" id="step2">
+                <div class="step-number">2</div>
+                <div class="fw-bold">选择目标</div>
+            </div>
+            <div class="step" id="step3">
+                <div class="step-number">3</div>
+                <div class="fw-bold">填写信息</div>
+            </div>
+        </div>
+
+        <!-- 转派表单 -->
+        <div class="card">
+            <div class="card-body">
+                <form id="transferForm">
+                    <input type="hidden" id="workOrderId" name="workOrderId" th:value="${workOrderId}">
+                    
+                    <!-- 步骤1：选择转派类型 -->
+                    <div class="form-step" id="formStep1">
+                        <h4 class="mb-4">选择转派类型</h4>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="transfer-type-card" data-type="DEPARTMENT_TRANSFER">
+                                    <i class="bi bi-building transfer-type-icon text-primary"></i>
+                                    <h5>部门转派</h5>
+                                    <p class="text-muted">将工单转派给其他部门处理</p>
+                                    <span class="badge bg-primary">跨部门</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="transfer-type-card" data-type="USER_TRANSFER">
+                                    <i class="bi bi-person-check transfer-type-icon text-success"></i>
+                                    <h5>用户转派</h5>
+                                    <p class="text-muted">将工单转派给特定用户处理</p>
+                                    <span class="badge bg-success">指定人员</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="transfer-type-card" data-type="ASSISTANCE_REQUEST">
+                                    <i class="bi bi-people transfer-type-icon text-warning"></i>
+                                    <h5>协助请求</h5>
+                                    <p class="text-muted">请求其他人员协助处理</p>
+                                    <span class="badge bg-warning text-dark">协助支持</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button type="button" class="btn btn-primary" onclick="nextStep(2)" disabled id="nextBtn1">
+                                下一步
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 步骤2：选择目标 -->
+                    <div class="form-step d-none" id="formStep2">
+                        <h4 class="mb-4">选择转派目标</h4>
+                        
+                        <!-- 部门选择 -->
+                        <div class="target-selection" id="departmentSelection">
+                            <div class="row justify-content-center">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="toDepartment" class="form-label">目标部门</label>
+                                        <select class="form-select" id="toDepartment" name="toDepartmentId">
+                                            <option value="">请选择目标部门</option>
+                                            <!-- 动态加载部门列表 -->
+                                        </select>
+                                        <div class="form-text">选择接收此工单的部门</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 用户选择 -->
+                        <div class="target-selection" id="userSelection">
+                            <div class="row justify-content-center">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="toUser" class="form-label">目标用户</label>
+                                        <select class="form-select" id="toUser" name="toUserId">
+                                            <option value="">请选择目标用户</option>
+                                            <!-- 动态加载用户列表 -->
+                                        </select>
+                                        <div class="form-text">选择具体负责处理的用户</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 协助人员选择 -->
+                        <div class="target-selection" id="assistanceSelection">
+                            <div class="row justify-content-center">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="assistanceUser" class="form-label">协助人员</label>
+                                        <select class="form-select" id="assistanceUser" name="assistanceUserId">
+                                            <option value="">请选择协助人员</option>
+                                            <!-- 动态加载用户列表 -->
+                                        </select>
+                                    </div>
+                                    <div class="alert alert-info" role="alert">
+                                        <strong>注意：</strong>协助请求不会改变工单的主要负责人，仅请求其他人员提供协助支持。
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-center gap-3 mt-4">
+                            <button type="button" class="btn btn-outline-secondary" onclick="prevStep(1)">
+                                上一步
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="nextStep(3)" disabled id="nextBtn2">
+                                下一步
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 步骤3：填写信息 -->
+                    <div class="form-step d-none" id="formStep3">
+                        <h4 class="mb-4">填写转派信息</h4>
+                        
+                        <div class="row justify-content-center">
+                            <div class="col-md-10">
+                                <div class="mb-3">
+                                    <label for="transferReason" class="form-label">转派原因 <span class="text-danger">*</span></label>
+                                    <textarea class="form-control" id="transferReason" name="transferReason" 
+                                              rows="4" placeholder="请详细说明转派的原因..." required></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="transferComments" class="form-label">备注信息</label>
+                                    <textarea class="form-control" id="transferComments" name="transferComments" 
+                                              rows="3" placeholder="可选的备注信息..."></textarea>
+                                </div>
+                                
+                                <!-- 转派信息确认 -->
+                                <div class="confirmation-card">
+                                    <h6 class="fw-bold mb-3">转派信息确认</h6>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <strong>转派类型：</strong>
+                                            <span id="confirmType" class="text-primary">-</span>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <strong>转派目标：</strong>
+                                            <span id="confirmTarget" class="text-success">-</span>
+                                        </div>
+                                        <div class="col-12 mt-2">
+                                            <strong>工单ID：</strong>
+                                            <span th:text="${workOrderId}" class="text-info">#1234</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-center gap-3 mt-4">
+                            <button type="button" class="btn btn-outline-secondary" onclick="prevStep(2)">
+                                上一步
+                            </button>
+                            <button type="submit" class="btn btn-success" id="submitBtn">
+                                创建转派
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">处理中...</span>
+            </div>
+            <h5>正在处理转派请求...</h5>
+            <p class="text-muted">请稍等片刻</p>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    
+    <!-- 转派创建脚本 -->
+    <script>
+        let currentStep = 1;
+        let selectedTransferType = '';
+        
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeEventListeners();
+        });
+
+        // 初始化事件监听器
+        function initializeEventListeners() {
+            // 转派类型选择
+            document.querySelectorAll('.transfer-type-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    selectTransferType(this);
+                });
+            });
+
+            // 目标选择变化监听
+            document.getElementById('toDepartment').addEventListener('change', validateTargetSelection);
+            document.getElementById('toUser').addEventListener('change', validateTargetSelection);
+            document.getElementById('assistanceUser').addEventListener('change', validateTargetSelection);
+
+            // 表单提交
+            document.getElementById('transferForm').addEventListener('submit', handleFormSubmit);
+        }
+
+        // 选择转派类型
+        function selectTransferType(card) {
+            // 移除所有选中状态
+            document.querySelectorAll('.transfer-type-card').forEach(c => {
+                c.classList.remove('selected');
+            });
+            
+            // 添加选中状态
+            card.classList.add('selected');
+            selectedTransferType = card.dataset.type;
+            
+            // 启用下一步按钮
+            document.getElementById('nextBtn1').disabled = false;
+        }
+        
+        // 步骤导航
+        function nextStep(step) {
+            if (step === 2 && !selectedTransferType) {
+                alert('请先选择转派类型');
+                return;
+            }
+            
+            if (step === 3) {
+                if (!validateTargetSelection()) {
+                    alert('请选择转派目标');
+                    return;
+                }
+                updateConfirmInfo();
+            }
+            
+            // 更新步骤状态
+            updateStepStatus(currentStep, step);
+            
+            // 隐藏当前步骤
+            document.getElementById(`formStep${currentStep}`).classList.add('d-none');
+            
+            // 显示下一步骤
+            currentStep = step;
+            document.getElementById(`formStep${currentStep}`).classList.remove('d-none');
+            
+            // 更新目标选择显示
+            if (step === 2) {
+                updateTargetSelection();
+                loadTargetData(); // 加载目标数据
+            }
+        }
+        
+        function prevStep(step) {
+            // 更新步骤状态
+            updateStepStatus(currentStep, step, true);
+            
+            // 隐藏当前步骤
+            document.getElementById(`formStep${currentStep}`).classList.add('d-none');
+            
+            // 显示上一步骤
+            currentStep = step;
+            document.getElementById(`formStep${currentStep}`).classList.remove('d-none');
+        }
+
+        // 更新步骤状态
+        function updateStepStatus(from, to, isBack = false) {
+            if (!isBack && from < to) {
+                // 前进：标记当前步骤为完成
+                document.getElementById(`step${from}`).classList.remove('active');
+                document.getElementById(`step${from}`).classList.add('completed');
+                document.getElementById(`step${to}`).classList.add('active');
+            } else if (isBack) {
+                // 后退：移除后续步骤的状态
+                for (let i = from; i <= 3; i++) {
+                    document.getElementById(`step${i}`).classList.remove('active', 'completed');
+                }
+                document.getElementById(`step${to}`).classList.add('active');
+            }
+        }
+        
+        // 更新目标选择界面
+        function updateTargetSelection() {
+            // 隐藏所有目标选择
+            document.querySelectorAll('.target-selection').forEach(selection => {
+                selection.classList.remove('active');
+            });
+            
+            // 根据转派类型显示对应的选择界面
+            let targetId = '';
+            switch(selectedTransferType) {
+                case 'DEPARTMENT_TRANSFER':
+                    targetId = 'departmentSelection';
+                    break;
+                case 'USER_TRANSFER':
+                    targetId = 'userSelection';
+                    break;
+                case 'ASSISTANCE_REQUEST':
+                    targetId = 'assistanceSelection';
+                    break;
+            }
+            
+            if (targetId) {
+                document.getElementById(targetId).classList.add('active');
+            }
+        }
+        
+        // 验证目标选择
+        function validateTargetSelection() {
+            let isValid = false;
+            switch(selectedTransferType) {
+                case 'DEPARTMENT_TRANSFER':
+                    isValid = document.getElementById('toDepartment').value !== '';
+                    break;
+                case 'USER_TRANSFER':
+                    isValid = document.getElementById('toUser').value !== '';
+                    break;
+                case 'ASSISTANCE_REQUEST':
+                    isValid = document.getElementById('assistanceUser').value !== '';
+                    break;
+            }
+            
+            // 更新下一步按钮状态
+            document.getElementById('nextBtn2').disabled = !isValid;
+            
+            return isValid;
+        }
+        
+        // 更新确认信息
+        function updateConfirmInfo() {
+            // 更新转派类型
+            const typeNames = {
+                'DEPARTMENT_TRANSFER': '部门转派',
+                'USER_TRANSFER': '用户转派',
+                'ASSISTANCE_REQUEST': '协助请求'
+            };
+            document.getElementById('confirmType').textContent = typeNames[selectedTransferType];
+            
+            // 更新转派目标
+            let targetText = '';
+            switch(selectedTransferType) {
+                case 'DEPARTMENT_TRANSFER':
+                    const deptSelect = document.getElementById('toDepartment');
+                    targetText = deptSelect.options[deptSelect.selectedIndex].text;
+                    break;
+                case 'USER_TRANSFER':
+                    const userSelect = document.getElementById('toUser');
+                    targetText = userSelect.options[userSelect.selectedIndex].text;
+                    break;
+                case 'ASSISTANCE_REQUEST':
+                    const assistanceSelect = document.getElementById('assistanceUser');
+                    targetText = assistanceSelect.options[assistanceSelect.selectedIndex].text;
+                    break;
+            }
+            document.getElementById('confirmTarget').textContent = targetText;
+        }
+        
+        // 表单提交处理
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            // 验证必填字段
+            const reason = document.getElementById('transferReason').value.trim();
+            if (!reason) {
+                alert('请填写转派原因');
+                return;
+            }
+            
+            // 显示加载遮罩
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            // 构建请求数据
+            const formData = {
+                workOrderId: parseInt(document.getElementById('workOrderId').value),
+                transferType: selectedTransferType,
+                transferReason: reason,
+                transferComments: document.getElementById('transferComments').value.trim(),
+                isAssistance: selectedTransferType === 'ASSISTANCE_REQUEST'
+            };
+            
+            // 根据转派类型设置目标
+            switch(selectedTransferType) {
+                case 'DEPARTMENT_TRANSFER':
+                    formData.toDepartmentId = parseInt(document.getElementById('toDepartment').value);
+                    break;
+                case 'USER_TRANSFER':
+                    formData.toUserId = parseInt(document.getElementById('toUser').value);
+                    break;
+                case 'ASSISTANCE_REQUEST':
+                    formData.toUserId = parseInt(document.getElementById('assistanceUser').value);
+                    break;
+            }
+            
+            // 发送请求
+            fetch('/transfer/api/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                
+                if (data.success) {
+                    alert('转派创建成功！');
+                    window.location.href = '/transfer';
+                } else {
+                    alert('创建失败：' + data.message);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                console.error('Error:', error);
+                alert('创建失败，请稍后重试');
+            });
+        }
+
+        // 加载目标数据（AJAX懒加载）
+        function loadTargetData() {
+            switch(selectedTransferType) {
+                case 'DEPARTMENT_TRANSFER':
+                    loadDepartments();
+                    break;
+                case 'USER_TRANSFER':
+                    loadUsers('toUser');
+                    break;
+                case 'ASSISTANCE_REQUEST':
+                    loadUsers('assistanceUser');
+                    break;
+            }
+        }
+
+        // 加载部门列表
+        function loadDepartments() {
+            const select = document.getElementById('toDepartment');
+            if (select.children.length > 1) return; // 已加载过
+            
+            // 显示加载状态
+            select.innerHTML = '<option value="">正在加载部门...</option>';
+            
+            fetch('/transfer/api/departments')
+                .then(response => response.json())
+                .then(departments => {
+                    select.innerHTML = '<option value="">请选择目标部门</option>';
+                    departments.forEach(dept => {
+                        const option = document.createElement('option');
+                        option.value = dept.id;
+                        option.textContent = dept.name;
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('加载部门失败:', error);
+                    select.innerHTML = '<option value="">加载部门失败，请刷新页面重试</option>';
+                });
+        }
+
+        // 加载用户列表
+        function loadUsers(selectId) {
+            const select = document.getElementById(selectId);
+            if (select.children.length > 1) return; // 已加载过
+            
+            // 显示加载状态
+            select.innerHTML = '<option value="">正在加载用户...</option>';
+            
+            fetch('/transfer/api/users?size=50')
+                .then(response => response.json())
+                .then(users => {
+                    const placeholder = selectId === 'assistanceUser' ? '请选择协助人员' : '请选择目标用户';
+                    select.innerHTML = `<option value="">${placeholder}</option>`;
+                    users.forEach(user => {
+                        const option = document.createElement('option');
+                        option.value = user.id;
+                        option.textContent = `${user.username} - ${user.role || ''}`;
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('加载用户失败:', error);
+                    const placeholder = selectId === 'assistanceUser' ? '加载协助人员失败' : '加载用户失败';
+                    select.innerHTML = `<option value="">${placeholder}，请刷新页面重试</option>`;
+                });
+        }
+    </script>
+</body>
+</html> 

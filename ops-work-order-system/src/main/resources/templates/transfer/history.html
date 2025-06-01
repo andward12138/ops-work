@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>转派历史 - 运维工单系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .transfer-item {
+            border-left: 4px solid #007bff;
+            transition: all 0.3s;
+        }
+        .transfer-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .status-pending { border-left-color: #ffc107; }
+        .status-accepted { border-left-color: #28a745; }
+        .status-rejected { border-left-color: #dc3545; }
+        .status-completed { border-left-color: #17a2b8; }
+        .status-cancelled { border-left-color: #6c757d; }
+        
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #dee2e6;
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 2rem;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -22px;
+            top: 8px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #007bff;
+            border: 2px solid white;
+        }
+        .timeline-item.pending::before { background: #ffc107; }
+        .timeline-item.accepted::before { background: #28a745; }
+        .timeline-item.rejected::before { background: #dc3545; }
+        .timeline-item.completed::before { background: #17a2b8; }
+        .timeline-item.cancelled::before { background: #6c757d; }
+        
+        .filter-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/dashboard">
+                <i class="bi bi-gear-fill me-2"></i>运维工单系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">
+                            <i class="bi bi-house me-1"></i>首页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/work-orders">
+                            <i class="bi bi-list-task me-1"></i>工单管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/transfer">
+                            <i class="bi bi-arrow-left-right me-1"></i>转派管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/statistics">
+                            <i class="bi bi-bar-chart me-1"></i>统计报表
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/workflow">
+                            <i class="bi bi-diagram-3 me-1"></i>流程管理
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col">
+                <h2><i class="bi bi-clock-history me-2"></i>转派历史</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/dashboard">首页</a></li>
+                        <li class="breadcrumb-item"><a href="/transfer">转派管理</a></li>
+                        <li class="breadcrumb-item active">转派历史</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <!-- 筛选器 -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card filter-card">
+                    <div class="card-body">
+                        <div class="row align-items-end">
+                            <div class="col-md-3">
+                                <label for="statusFilter" class="form-label">状态筛选</label>
+                                <select class="form-select" id="statusFilter">
+                                    <option value="">全部状态</option>
+                                    <option value="PENDING">待处理</option>
+                                    <option value="ACCEPTED">已接受</option>
+                                    <option value="REJECTED">已拒绝</option>
+                                    <option value="COMPLETED">已完成</option>
+                                    <option value="CANCELLED">已取消</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="typeFilter" class="form-label">类型筛选</label>
+                                <select class="form-select" id="typeFilter">
+                                    <option value="">全部类型</option>
+                                    <option value="DEPARTMENT_TRANSFER">部门转派</option>
+                                    <option value="USER_TRANSFER">用户转派</option>
+                                    <option value="ASSISTANCE_REQUEST">协助请求</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="searchInput" class="form-label">搜索工单</label>
+                                <input type="text" class="form-control" id="searchInput" placeholder="输入工单标题或转派原因...">
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-light w-100" onclick="filterTransfers()">
+                                    <i class="bi bi-search me-1"></i>筛选
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 转派历史列表 -->
+        <div class="row">
+            <div class="col-12">
+                <div th:if="${#lists.isEmpty(transferHistory)}" class="text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted"></i>
+                    <h4 class="text-muted mt-3">暂无转派历史记录</h4>
+                    <p class="text-muted">没有找到符合条件的转派记录</p>
+                    <a href="/transfer" class="btn btn-primary">返回转派管理</a>
+                </div>
+
+                <div th:if="${!#lists.isEmpty(transferHistory)}" class="timeline">
+                    <div th:each="transfer : ${transferHistory}" 
+                         class="timeline-item" 
+                         th:classappend="${#strings.toLowerCase(transfer.status.name())}"
+                         th:attr="data-status=${transfer.status.name()}, data-type=${transfer.transferType.name()}, data-search=${transfer.workOrderTitle + ' ' + transfer.transferReason}">
+                        
+                        <div class="card transfer-item mb-3" 
+                             th:classappend="'status-' + ${#strings.toLowerCase(transfer.status.name())}">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <h6 class="card-title mb-2">
+                                            <a th:href="@{'/work-orders/details/' + ${transfer.workOrderId}}" 
+                                               class="text-decoration-none text-primary fw-bold" 
+                                               th:text="${transfer.workOrderTitle}">工单标题</a>
+                                            <span class="badge ms-2" 
+                                                  th:classappend="${transfer.status.name() == 'PENDING'} ? 'bg-warning text-dark' : 
+                                                                 ${transfer.status.name() == 'ACCEPTED'} ? 'bg-success' : 
+                                                                 ${transfer.status.name() == 'REJECTED'} ? 'bg-danger' : 
+                                                                 ${transfer.status.name() == 'COMPLETED'} ? 'bg-info' : 'bg-secondary'"
+                                                  th:text="${transfer.statusName}">状态</span>
+                                        </h6>
+                                        
+                                        <div class="mb-2">
+                                            <span class="badge bg-light text-dark me-2" th:text="${transfer.transferTypeName}">转派类型</span>
+                                            <span th:if="${transfer.isAssistance}" class="badge bg-warning text-dark">协助处理</span>
+                                        </div>
+                                        
+                                        <p class="text-muted mb-2" th:text="${transfer.transferReason}">转派原因</p>
+                                        
+                                        <div class="row text-muted small">
+                                            <div class="col-md-6">
+                                                <i class="bi bi-person me-1"></i>
+                                                申请人：<span th:text="${transfer.requestedByName}">申请人</span>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <i class="bi bi-arrow-right me-1"></i>
+                                                目标：<span th:text="${transfer.toUserName != null ? transfer.toUserName : transfer.toDepartmentName}">目标</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-4 text-end">
+                                        <div class="mb-2">
+                                            <small class="text-muted">
+                                                <i class="bi bi-clock me-1"></i>
+                                                申请时间：<span th:text="${#temporals.format(transfer.requestedAt, 'yyyy-MM-dd HH:mm')}">申请时间</span>
+                                            </small>
+                                        </div>
+                                        
+                                        <div th:if="${transfer.acceptedAt != null}" class="mb-2">
+                                            <small class="text-success">
+                                                <i class="bi bi-check-circle me-1"></i>
+                                                接受时间：<span th:text="${#temporals.format(transfer.acceptedAt, 'yyyy-MM-dd HH:mm')}">接受时间</span>
+                                            </small>
+                                        </div>
+                                        
+                                        <div th:if="${transfer.completedAt != null}" class="mb-2">
+                                            <small class="text-info">
+                                                <i class="bi bi-clipboard-check me-1"></i>
+                                                完成时间：<span th:text="${#temporals.format(transfer.completedAt, 'yyyy-MM-dd HH:mm')}">完成时间</span>
+                                            </small>
+                                        </div>
+                                        
+                                        <!-- 操作按钮 -->
+                                        <div class="btn-group" role="group" th:if="${transfer.status.name() == 'PENDING'}">
+                                            <button class="btn btn-sm btn-success" 
+                                                    th:onclick="'acceptTransfer(' + ${transfer.id} + ')'">
+                                                <i class="bi bi-check me-1"></i>接受
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    th:onclick="'rejectTransfer(' + ${transfer.id} + ')'">
+                                                <i class="bi bi-x me-1"></i>拒绝
+                                            </button>
+                                        </div>
+                                        
+                                        <div th:if="${transfer.status.name() == 'ACCEPTED'}" class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-info" 
+                                                    th:onclick="'completeTransfer(' + ${transfer.id} + ')'">
+                                                <i class="bi bi-check-circle me-1"></i>完成
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 转派备注 -->
+                                <div th:if="${transfer.transferComments != null and !#strings.isEmpty(transfer.transferComments)}" 
+                                     class="mt-3 p-2 bg-light rounded">
+                                    <small class="text-muted">
+                                        <i class="bi bi-chat-left-text me-1"></i>
+                                        备注：<span th:text="${transfer.transferComments}">备注信息</span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分页导航 -->
+        <div class="row mt-4" th:if="${!#lists.isEmpty(transferHistory)}">
+            <div class="col-12 text-center">
+                <nav aria-label="转派历史分页">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" tabindex="-1">上一页</a>
+                        </li>
+                        <li class="page-item active">
+                            <a class="page-link" href="#">1</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">2</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">3</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">下一页</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+
+        <!-- 快捷操作 -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center py-3">
+                        <a href="/transfer" class="btn btn-outline-primary me-3">
+                            <i class="bi bi-arrow-left me-2"></i>返回转派管理
+                        </a>
+                        <a href="/work-orders" class="btn btn-outline-success me-3">
+                            <i class="bi bi-list-task me-2"></i>工单管理
+                        </a>
+                        <button class="btn btn-outline-info" onclick="exportTransferHistory()">
+                            <i class="bi bi-download me-2"></i>导出记录
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 转派历史脚本 -->
+    <script>
+        // 筛选转派记录
+        function filterTransfers() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            document.querySelectorAll('.timeline-item').forEach(item => {
+                const status = item.getAttribute('data-status');
+                const type = item.getAttribute('data-type');
+                const searchData = item.getAttribute('data-search').toLowerCase();
+                
+                let showItem = true;
+                
+                // 状态筛选
+                if (statusFilter && status !== statusFilter) {
+                    showItem = false;
+                }
+                
+                // 类型筛选
+                if (typeFilter && type !== typeFilter) {
+                    showItem = false;
+                }
+                
+                // 搜索筛选
+                if (searchTerm && !searchData.includes(searchTerm)) {
+                    showItem = false;
+                }
+                
+                item.style.display = showItem ? 'block' : 'none';
+            });
+        }
+        
+        // 接受转派
+        function acceptTransfer(transferId) {
+            if (confirm('确定要接受这个转派吗？')) {
+                fetch(`/transfer/api/${transferId}/accept`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('转派已接受');
+                        location.reload();
+                    } else {
+                        alert('操作失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('操作失败，请稍后重试');
+                });
+            }
+        }
+
+        // 拒绝转派
+        function rejectTransfer(transferId) {
+            if (confirm('确定要拒绝这个转派吗？')) {
+                fetch(`/transfer/api/${transferId}/reject`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('转派已拒绝');
+                        location.reload();
+                    } else {
+                        alert('操作失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('操作失败，请稍后重试');
+                });
+            }
+        }
+
+        // 完成转派
+        function completeTransfer(transferId) {
+            if (confirm('确定要标记这个转派为已完成吗？')) {
+                fetch(`/transfer/api/${transferId}/complete`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('转派已完成');
+                        location.reload();
+                    } else {
+                        alert('操作失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('操作失败，请稍后重试');
+                });
+            }
+        }
+        
+        // 导出转派历史
+        function exportTransferHistory() {
+            alert('导出功能开发中...');
+            // TODO: 实现Excel导出功能
+        }
+        
+        // 实时搜索
+        document.getElementById('searchInput').addEventListener('input', function() {
+            filterTransfers();
+        });
+        
+        // 下拉筛选器事件
+        document.getElementById('statusFilter').addEventListener('change', filterTransfers);
+        document.getElementById('typeFilter').addEventListener('change', filterTransfers);
+    </script>
+</body>
+</html> 

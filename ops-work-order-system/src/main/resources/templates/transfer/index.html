@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf != null} ? ${_csrf.token} : ''"/>
+    <meta name="_csrf_header" th:content="${_csrf != null} ? ${_csrf.headerName} : ''"/>
+    <title>转派管理 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <style>
+        .card-stat {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        .card-stat:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .status-badge {
+            font-size: 0.8em;
+            padding: 0.4em 0.8em;
+            border-radius: 4px;
+        }
+        .transfer-card {
+            border-left: 4px solid #007bff;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        .transfer-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .pending-card {
+            border-left-color: #ffc107;
+        }
+        .accepted-card {
+            border-left-color: #28a745;
+        }
+        .rejected-card {
+            border-left-color: #dc3545;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: #6c757d;
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-icon {
+            font-size: 2rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/transfer}">转派管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/statistics}">统计报表</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 错误提示 -->
+        <div th:if="${error}" class="alert alert-danger mb-4" role="alert">
+            <span th:text="${error}">错误信息</span>
+        </div>
+
+        <!-- 页面标题 -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>转派管理</h2>
+            <div>
+                <a href="/transfer/history" class="btn btn-outline-primary me-2">转派历史</a>
+                <a href="/work-orders" class="btn btn-outline-success">工单列表</a>
+            </div>
+        </div>
+
+        <!-- 统计概览 -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card card-stat">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title text-muted mb-1">待处理转派</h6>
+                                <div class="stat-number" th:text="${statistics != null ? statistics.pendingCount : 0}">0</div>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="bi bi-hourglass-split"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card card-stat">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title text-muted mb-1">已接受转派</h6>
+                                <div class="stat-number" th:text="${statistics != null ? statistics.acceptedCount : 0}">0</div>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="bi bi-check-circle"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card card-stat">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title text-muted mb-1">已完成转派</h6>
+                                <div class="stat-number" th:text="${statistics != null ? statistics.completedCount : 0}">0</div>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="bi bi-clipboard-check"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card card-stat">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-title text-muted mb-1">已拒绝转派</h6>
+                                <div class="stat-number" th:text="${statistics != null ? statistics.rejectedCount : 0}">0</div>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="bi bi-x-circle"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-2 text-muted">正在加载数据...</p>
+        </div>
+
+        <div class="row">
+            <!-- 待处理转派 -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0 d-flex align-items-center">
+                            <i class="bi bi-inbox me-2"></i>待我处理的转派
+                            <span class="badge bg-secondary ms-auto" th:text="${pendingTransfers != null ? #lists.size(pendingTransfers) : 0}">0</span>
+                        </h5>
+                    </div>
+                    <div class="card-body p-0" style="max-height: 500px; overflow-y: auto;">
+                        <div th:if="${pendingTransfers == null or #lists.isEmpty(pendingTransfers)}" class="empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <h5>暂无待处理的转派</h5>
+                            <p class="text-muted">当前没有需要您处理的转派请求</p>
+                        </div>
+                        <div th:each="transfer : ${pendingTransfers}" class="p-3 border-bottom">
+                            <div class="transfer-card border-0 p-3 bg-light">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="mb-1 fw-bold">
+                                        <a th:href="@{'/work-orders/details/' + ${transfer.workOrderId}}" 
+                                           class="text-decoration-none" 
+                                           th:text="${transfer.workOrderTitle}">工单标题</a>
+                                    </h6>
+                                    <span class="badge bg-warning text-dark status-badge" 
+                                          th:text="${transfer.transferTypeName}">转派类型</span>
+                                </div>
+                                <p class="text-muted small mb-2" th:text="${transfer.transferReason}">转派原因</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        申请人：<span th:text="${transfer.requestedByName}">申请人</span> |
+                                        申请时间：<span th:text="${transfer.requestedAt != null ? #temporals.format(transfer.requestedAt, 'MM-dd HH:mm') : ''}">申请时间</span>
+                                    </small>
+                                    <div>
+                                        <button class="btn btn-sm btn-success me-2" 
+                                                th:onclick="'acceptTransfer(' + ${transfer.id} + ')'">
+                                            接受
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                th:onclick="'rejectTransfer(' + ${transfer.id} + ')'">
+                                            拒绝
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer" th:if="${pendingTransfers != null and !#lists.isEmpty(pendingTransfers)}">
+                        <a href="/transfer/history" class="btn btn-outline-primary btn-sm">查看更多</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 我发起的转派 -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0 d-flex align-items-center">
+                            <i class="bi bi-send me-2"></i>我发起的转派
+                            <span class="badge bg-secondary ms-auto" th:text="${userTransfers != null ? #lists.size(userTransfers) : 0}">0</span>
+                        </h5>
+                    </div>
+                    <div class="card-body p-0" style="max-height: 500px; overflow-y: auto;">
+                        <div th:if="${userTransfers == null or #lists.isEmpty(userTransfers)}" class="empty-state">
+                            <i class="bi bi-send"></i>
+                            <h5>暂无发起的转派</h5>
+                            <p class="text-muted">您还没有发起过转派请求</p>
+                        </div>
+                        <div th:each="transfer : ${userTransfers}" class="p-3 border-bottom">
+                            <div class="transfer-card border-0 p-3 bg-light" 
+                                 th:classappend="${transfer.status != null and transfer.status.name() == 'PENDING'} ? 'pending-card' : 
+                                                ${transfer.status != null and transfer.status.name() == 'ACCEPTED'} ? 'accepted-card' : 'rejected-card'">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="mb-1 fw-bold">
+                                        <a th:href="@{'/work-orders/details/' + ${transfer.workOrderId}}" 
+                                           class="text-decoration-none" 
+                                           th:text="${transfer.workOrderTitle}">工单标题</a>
+                                    </h6>
+                                    <span class="badge status-badge" 
+                                          th:classappend="${transfer.status != null and transfer.status.name() == 'PENDING'} ? 'bg-warning text-dark' : 
+                                                         ${transfer.status != null and transfer.status.name() == 'ACCEPTED'} ? 'bg-success' : 'bg-danger'"
+                                          th:text="${transfer.statusName}">状态</span>
+                                </div>
+                                <p class="text-muted small mb-2" th:text="${transfer.transferReason}">转派原因</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        转派至：<span th:text="${transfer.toUserName != null ? transfer.toUserName : transfer.toDepartmentName}">目标</span> |
+                                        申请时间：<span th:text="${transfer.requestedAt != null ? #temporals.format(transfer.requestedAt, 'MM-dd HH:mm') : ''}">申请时间</span>
+                                    </small>
+                                    <div th:if="${transfer.status != null and transfer.status.name() == 'PENDING'}">
+                                        <button class="btn btn-sm btn-outline-secondary" 
+                                                th:onclick="'cancelTransfer(' + ${transfer.id} + ')'">
+                                            取消
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer" th:if="${userTransfers != null and !#lists.isEmpty(userTransfers)}">
+                        <a href="/transfer/history" class="btn btn-outline-primary btn-sm">查看历史</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    
+    <!-- 转派操作脚本 -->
+    <script>
+        // 页面加载完成后隐藏加载状态
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        });
+
+        // 显示加载状态
+        function showLoading() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+        }
+
+        // 隐藏加载状态
+        function hideLoading() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        // 接受转派
+        function acceptTransfer(transferId) {
+            if (confirm('确定要接受这个转派吗？')) {
+                showLoading();
+                fetch(`/transfer/api/${transferId}/accept`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        alert('转派已接受');
+                        location.reload();
+                    } else {
+                        alert('操作失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error:', error);
+                    alert('操作失败，请稍后重试');
+                });
+            }
+        }
+
+        // 拒绝转派
+        function rejectTransfer(transferId) {
+            if (confirm('确定要拒绝这个转派吗？')) {
+                showLoading();
+                fetch(`/transfer/api/${transferId}/reject`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        alert('转派已拒绝');
+                        location.reload();
+                    } else {
+                        alert('操作失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error:', error);
+                    alert('操作失败，请稍后重试');
+                });
+            }
+        }
+
+        // 取消转派
+        function cancelTransfer(transferId) {
+            if (confirm('确定要取消这个转派吗？')) {
+                showLoading();
+                fetch(`/transfer/api/${transferId}/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        alert('转派已取消');
+                        location.reload();
+                    } else {
+                        alert('操作失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error:', error);
+                    alert('操作失败，请稍后重试');
+                });
+            }
+        }
+    </script>
+</body>
+</html> 

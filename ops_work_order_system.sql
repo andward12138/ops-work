@@ -470,3 +470,48 @@ INSERT INTO `workflow_template_steps`
 UPDATE `users` SET `department_id` = 2 WHERE `username` = 'admin';
 UPDATE `users` SET `department_id` = 3 WHERE `username` = 'operator';
 UPDATE `users` SET `department_id` = 3 WHERE `username` = 'manager';
+
+-- 创建转派记录表（新增于2025-06-01）
+
+-- Table structure for table `transfer_records`
+CREATE TABLE IF NOT EXISTS `transfer_records` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `work_order_id` int NOT NULL,
+  `from_user_id` int DEFAULT NULL,
+  `from_department_id` int DEFAULT NULL,
+  `to_user_id` int DEFAULT NULL,
+  `to_department_id` int DEFAULT NULL,
+  `transfer_type` enum('DEPARTMENT_TRANSFER','USER_TRANSFER','ASSISTANCE_REQUEST') NOT NULL DEFAULT 'DEPARTMENT_TRANSFER',
+  `transfer_reason` varchar(500) DEFAULT NULL,
+  `transfer_comments` text DEFAULT NULL,
+  `is_assistance` boolean DEFAULT FALSE COMMENT '是否为协助处理',
+  `status` enum('PENDING','ACCEPTED','REJECTED','COMPLETED','CANCELLED') NOT NULL DEFAULT 'PENDING',
+  `requested_by` int NOT NULL,
+  `accepted_by` int DEFAULT NULL,
+  `requested_at` datetime(6) DEFAULT NULL,
+  `accepted_at` datetime(6) DEFAULT NULL,
+  `completed_at` datetime(6) DEFAULT NULL,
+  `created_at` datetime(6) DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime(6) DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `FK_transfer_record_work_order` (`work_order_id`),
+  KEY `FK_transfer_record_from_user` (`from_user_id`),
+  KEY `FK_transfer_record_from_department` (`from_department_id`),
+  KEY `FK_transfer_record_to_user` (`to_user_id`),
+  KEY `FK_transfer_record_to_department` (`to_department_id`),
+  KEY `FK_transfer_record_requested_by` (`requested_by`),
+  KEY `FK_transfer_record_accepted_by` (`accepted_by`),
+  CONSTRAINT `FK_transfer_record_work_order` FOREIGN KEY (`work_order_id`) REFERENCES `work_orders` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `FK_transfer_record_from_user` FOREIGN KEY (`from_user_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `FK_transfer_record_from_department` FOREIGN KEY (`from_department_id`) REFERENCES `departments` (`id`),
+  CONSTRAINT `FK_transfer_record_to_user` FOREIGN KEY (`to_user_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `FK_transfer_record_to_department` FOREIGN KEY (`to_department_id`) REFERENCES `departments` (`id`),
+  CONSTRAINT `FK_transfer_record_requested_by` FOREIGN KEY (`requested_by`) REFERENCES `users` (`id`),
+  CONSTRAINT `FK_transfer_record_accepted_by` FOREIGN KEY (`accepted_by`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='工单转派记录表';
+
+-- Dumping data for table `transfer_records`
+LOCK TABLES `transfer_records` WRITE;
+/*!40000 ALTER TABLE `transfer_records` DISABLE KEYS */;
+/*!40000 ALTER TABLE `transfer_records` ENABLE KEYS */;
+UNLOCK TABLES;
