@@ -1,6 +1,6 @@
 package com.example.opsworkordersystem.entity;
 
 public enum Priority {
-    LOW, MEDIUM, HIGH
+    LOW, MEDIUM, HIGH, URGENT
 }
 

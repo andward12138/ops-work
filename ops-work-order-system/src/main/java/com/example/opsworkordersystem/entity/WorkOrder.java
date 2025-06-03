@@ -36,8 +36,9 @@ public class WorkOrder {
     @Column(name = "department")
     private String department;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type")
-    private String type;  // 工单类型
+    private WorkOrderType workOrderType;  // 工单类型，改为枚举
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -65,6 +66,19 @@ public class WorkOrder {
         this.createdBy = createdBy;
         this.assignedTo = assignedTo;
         this.department = department;
+    }
+
+    // 新的构造方法，包含工单类型
+    public WorkOrder(String title, String description, WorkOrderType workOrderType, User createdBy) {
+        this.title = title;
+        this.description = description;
+        this.workOrderType = workOrderType;
+        this.createdBy = createdBy;
+        this.priority = workOrderType.getDefaultPriority();
+        this.status = workOrderType.getDefaultStatus();
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+        calculateDeadlineBasedOnType();
     }
 
     // Getters and Setters
@@ -132,12 +146,28 @@ public class WorkOrder {
         this.department = department;
     }
 
+    public WorkOrderType getWorkOrderType() {
+        return workOrderType;
+    }
+
+    public void setWorkOrderType(WorkOrderType workOrderType) {
+        this.workOrderType = workOrderType;
+    }
+
+    // 保持向后兼容的getter和setter
     public String getType() {
-        return type;
+        return workOrderType != null ? workOrderType.name() : null;
     }
 
     public void setType(String type) {
-        this.type = type;
+        if (type != null && !type.isEmpty()) {
+            try {
+                this.workOrderType = WorkOrderType.valueOf(type);
+            } catch (IllegalArgumentException e) {
+                // 如果字符串不是有效的枚举值，则设为默认值
+                this.workOrderType = WorkOrderType.REQUEST;
+            }
+        }
     }
 
     public LocalDateTime getCreatedAt() {
@@ -172,7 +202,21 @@ public class WorkOrder {
         this.isOverdue = isOverdue;
     }
     
-    // 计算截止时间的便捷方法
+    // 基于工单类型计算截止时间的新方法
+    public void calculateDeadlineBasedOnType() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        
+        if (this.workOrderType != null) {
+            this.deadline = this.createdAt.plusHours(this.workOrderType.getDefaultDeadlineHours());
+        } else {
+            // 如果没有工单类型，则使用优先级计算
+            calculateDeadlineBasedOnPriority();
+        }
+    }
+    
+    // 计算截止时间的便捷方法（保持向后兼容）
     public void calculateDeadlineBasedOnPriority() {
         if (this.createdAt == null) {
             this.createdAt = LocalDateTime.now();
@@ -213,5 +257,40 @@ public class WorkOrder {
         boolean isNowOverdue = LocalDateTime.now().isAfter(this.deadline);
         this.isOverdue = isNowOverdue;
         return isNowOverdue;
+    }
+    
+    /**
+     * 获取工单类型的显示名称
+     */
+    public String getWorkOrderTypeDisplayName() {
+        return workOrderType != null ? workOrderType.getDisplayName() : "未知类型";
+    }
+    
+    /**
+     * 获取工单类型的CSS样式类
+     */
+    public String getWorkOrderTypeCssClass() {
+        return workOrderType != null ? workOrderType.getCssClass() : "badge-secondary";
+    }
+    
+    /**
+     * 获取工单类型的图标
+     */
+    public String getWorkOrderTypeIcon() {
+        return workOrderType != null ? workOrderType.getIcon() : "bi-file-text";
+    }
+    
+    /**
+     * 检查是否需要审批
+     */
+    public boolean requiresApproval() {
+        return workOrderType != null ? workOrderType.requiresApproval() : true;
+    }
+    
+    /**
+     * 检查是否需要立即处理
+     */
+    public boolean requiresImmediate() {
+        return workOrderType != null ? workOrderType.isRequiresImmediate() : false;
     }
 }

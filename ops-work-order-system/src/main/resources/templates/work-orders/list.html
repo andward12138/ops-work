@@ -13,6 +13,19 @@
             color: #dc3545;
             font-weight: bold;
         }
+        .priority-urgent {
+            color: #dc3545;
+            font-weight: bold;
+            background-color: #f8d7da;
+            padding: 2px 6px;
+            border-radius: 4px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
         .priority-medium {
             color: #fd7e14;
         }
@@ -78,6 +91,9 @@
                         <a class="nav-link active" th:href="@{/work-orders}">工单管理</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-order-types}">类型管理</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" th:href="@{/departments}">部门管理</a>
                     </li>
                     <li class="nav-item">
@@ -117,7 +133,7 @@
         <div class="card mb-4">
             <div class="card-header">
                 <form class="row g-3" method="get" th:action="@{/work-orders}">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label for="status-filter" class="form-label">状态</label>
                         <select id="status-filter" name="status" class="form-select">
                             <option value="">全部</option>
@@ -129,21 +145,32 @@
                             <option value="OVERDUE" th:selected="${statusFilter == 'OVERDUE'}">已逾期</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
+                        <label for="type-filter" class="form-label">类型</label>
+                        <select id="type-filter" name="type" class="form-select">
+                            <option value="">全部类型</option>
+                            <option value="EMERGENCY" th:selected="${typeFilter == 'EMERGENCY'}">🚨应急</option>
+                            <option value="INCIDENT" th:selected="${typeFilter == 'INCIDENT'}">🐛故障</option>
+                            <option value="MAINTENANCE" th:selected="${typeFilter == 'MAINTENANCE'}">🔧维护</option>
+                            <option value="REQUEST" th:selected="${typeFilter == 'REQUEST'}">💡需求</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <label for="priority-filter" class="form-label">优先级</label>
                         <select id="priority-filter" name="priority" class="form-select">
                             <option value="">全部</option>
-                            <option value="HIGH" th:selected="${priorityFilter == 'HIGH'}">高</option>
-                            <option value="MEDIUM" th:selected="${priorityFilter == 'MEDIUM'}">中</option>
-                            <option value="LOW" th:selected="${priorityFilter == 'LOW'}">低</option>
+                            <option value="URGENT" th:selected="${priorityFilter == 'URGENT'}">🔴紧急</option>
+                            <option value="HIGH" th:selected="${priorityFilter == 'HIGH'}">🟠高</option>
+                            <option value="MEDIUM" th:selected="${priorityFilter == 'MEDIUM'}">🟡中</option>
+                            <option value="LOW" th:selected="${priorityFilter == 'LOW'}">🟢低</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label for="keywords" class="form-label">关键词</label>
                         <input type="text" id="keywords" name="keywords" class="form-control" 
                                placeholder="工单标题、描述" th:value="${keywordsFilter}">
                     </div>
-                    <div class="col-md-3 d-flex align-items-end">
+                    <div class="col-md-2 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary w-100">搜索</button>
                     </div>
                 </form>
@@ -158,6 +185,7 @@
                             <tr>
                                 <th>工单号</th>
                                 <th>标题</th>
+                                <th>类型</th>
                                 <th>状态</th>
                                 <th>优先级</th>
                                 <th>创建人</th>
@@ -172,6 +200,14 @@
                                 <td>
                                     <a th:href="@{/work-orders/{id}(id=${workOrder.id})}" th:text="${workOrder.title}" 
                                        th:classappend="${workOrder.isOverdue != null && workOrder.isOverdue == true ? 'overdue-badge' : ''}">工单标题</a>
+                                </td>
+                                <td>
+                                    <span th:if="${workOrder.workOrderType != null}" class="badge" 
+                                          th:class="${workOrder.workOrderType.cssClass}"
+                                          th:text="${workOrder.workOrderType.displayName}">
+                                        工单类型
+                                    </span>
+                                    <span th:unless="${workOrder.workOrderType != null}" class="text-muted small">未设置</span>
                                 </td>
                                 <td>
                                     <span class="badge rounded-pill" 
@@ -189,10 +225,12 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <span th:classappend="${workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH ? 'priority-high' : 
-                                                      (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM ? 'priority-medium' : 'priority-low')}"
-                                        th:text="${workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH ? '高' : 
-                                                (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM ? '中' : '低')}">
+                                    <span th:classappend="${workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).URGENT ? 'priority-urgent' : 
+                                                      (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH ? 'priority-high' : 
+                                                      (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM ? 'priority-medium' : 'priority-low'))}"
+                                        th:text="${workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).URGENT ? '🔴紧急' : 
+                                               (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).HIGH ? '🟠高' : 
+                                               (workOrder.priority == T(com.example.opsworkordersystem.entity.Priority).MEDIUM ? '🟡中' : '🟢低'))}">
                                         优先级
                                     </span>
                                 </td>
@@ -210,7 +248,7 @@
                                 </td>
                             </tr>
                             <tr th:if="${workOrders.empty}">
-                                <td colspan="8" class="text-center">暂无工单数据</td>
+                                <td colspan="9" class="text-center">暂无工单数据</td>
                             </tr>
                         </tbody>
                     </table>
@@ -237,14 +275,27 @@
                             <label for="description" class="form-label">工单描述</label>
                             <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
                         </div>
+                        <div class="mb-3">
+                            <label for="workOrderType" class="form-label">工单类型</label>
+                            <select class="form-select" id="workOrderType" name="workOrderType" required>
+                                <option value="">-- 请选择工单类型 --</option>
+                                <option value="EMERGENCY">🚨 应急工单 - 紧急事件、安全事故</option>
+                                <option value="INCIDENT">🐛 故障工单 - 系统故障、服务中断</option>
+                                <option value="MAINTENANCE">🔧 维护工单 - 计划维护、系统升级</option>
+                                <option value="REQUEST">💡 需求工单 - 功能需求、配置变更</option>
+                            </select>
+                            <small class="form-text text-muted">选择工单类型后，优先级和截止时间将自动设置</small>
+                        </div>
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="modal-priority" class="form-label">优先级</label>
                                 <select class="form-select" id="modal-priority" name="priority" required>
-                                    <option value="HIGH">高</option>
-                                    <option value="MEDIUM" selected>中</option>
-                                    <option value="LOW">低</option>
+                                    <option value="URGENT">🔴 紧急</option>
+                                    <option value="HIGH">🟠 高</option>
+                                    <option value="MEDIUM" selected>🟡 中</option>
+                                    <option value="LOW">🟢 低</option>
                                 </select>
+                                <small class="form-text text-muted">已根据工单类型自动设置</small>
                             </div>
                             <div class="col-md-6">
                                 <label for="department" class="form-label">所属部门</label>
@@ -279,9 +330,52 @@
         // 提交工单的脚本
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('createWorkOrderForm');
+            const workOrderTypeSelect = document.getElementById('workOrderType');
+            const prioritySelect = document.getElementById('modal-priority');
+            const deadlineInput = document.getElementById('deadline');
             
             // 加载操作员用户列表
             loadOperators();
+            
+            // 工单类型变化时自动设置优先级和建议截止时间
+            workOrderTypeSelect.addEventListener('change', function() {
+                const selectedType = this.value;
+                updateFormByType(selectedType);
+            });
+            
+            // 根据工单类型更新表单
+            function updateFormByType(type) {
+                const now = new Date();
+                let suggestedDeadline = new Date(now);
+                
+                switch(type) {
+                    case 'EMERGENCY':
+                        prioritySelect.value = 'URGENT';
+                        suggestedDeadline.setHours(now.getHours() + 1); // 1小时内
+                        break;
+                    case 'INCIDENT':
+                        prioritySelect.value = 'HIGH';
+                        suggestedDeadline.setHours(now.getHours() + 2); // 2小时内
+                        break;
+                    case 'MAINTENANCE':
+                        prioritySelect.value = 'MEDIUM';
+                        suggestedDeadline.setDate(now.getDate() + 7); // 7天内
+                        break;
+                    case 'REQUEST':
+                        prioritySelect.value = 'MEDIUM';
+                        suggestedDeadline.setDate(now.getDate() + 5); // 5天内
+                        break;
+                    default:
+                        prioritySelect.value = 'MEDIUM';
+                        suggestedDeadline.setDate(now.getDate() + 3); // 默认3天内
+                }
+                
+                // 设置建议的截止时间
+                if (type && type !== '') {
+                    const deadlineStr = suggestedDeadline.toISOString().slice(0, 16);
+                    deadlineInput.value = deadlineStr;
+                }
+            }
             
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
@@ -289,6 +383,7 @@
                 // 检查表单元素存在且能正确获取到值
                 const titleElem = document.getElementById('title');
                 const descriptionElem = document.getElementById('description');
+                const workOrderTypeElem = document.getElementById('workOrderType');
                 const priorityElem = document.getElementById('modal-priority');
                 const departmentElem = document.getElementById('department');
                 const assignedToElem = document.getElementById('assignedTo');
@@ -296,6 +391,7 @@
                 console.log("表单元素检查:");
                 console.log("title元素:", titleElem, "值:", titleElem ? titleElem.value : "不存在");
                 console.log("description元素:", descriptionElem, "值:", descriptionElem ? descriptionElem.value : "不存在");
+                console.log("workOrderType元素:", workOrderTypeElem, "值:", workOrderTypeElem ? workOrderTypeElem.value : "不存在");
                 console.log("priority元素:", priorityElem, "值:", priorityElem ? priorityElem.value : "不存在");
                 console.log("department元素:", departmentElem, "值:", departmentElem ? departmentElem.value : "不存在");
                 console.log("assignedTo元素:", assignedToElem, "值:", assignedToElem ? assignedToElem.value : "不存在");
@@ -305,10 +401,16 @@
                     return;
                 }
                 
+                if (!workOrderTypeElem || !workOrderTypeElem.value) {
+                    alert("请选择工单类型");
+                    return;
+                }
+                
                 // 获取表单数据
                 const formData = {
                     title: titleElem ? titleElem.value : "",
                     description: descriptionElem ? descriptionElem.value : "",
+                    workOrderType: workOrderTypeElem ? workOrderTypeElem.value : "",
                     priority: priorityElem ? priorityElem.value : "MEDIUM", // 默认中等优先级
                     department: departmentElem ? departmentElem.value : "",
                     assignedToId: assignedToElem && assignedToElem.value ? assignedToElem.value : null,
@@ -316,7 +418,7 @@
                 };
                 
                 // 确保优先级值是有效的枚举
-                if (formData.priority && !['HIGH', 'MEDIUM', 'LOW'].includes(formData.priority.toUpperCase())) {
+                if (formData.priority && !['HIGH', 'MEDIUM', 'LOW', 'URGENT'].includes(formData.priority.toUpperCase())) {
                     alert('无效的优先级值: ' + formData.priority);
                     console.error('无效的优先级值:', formData.priority);
                     return;

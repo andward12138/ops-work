@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工单类型管理 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .type-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .type-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .type-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        .workflow-step {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem 0;
+            border-left: 4px solid #007bff;
+        }
+        .comparison-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+        .badge-custom {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/work-order-types}">类型管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/statistics}">统计报表</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="mb-1">
+                            <i class="bi bi-tags text-primary me-2"></i>工单类型管理
+                        </h2>
+                        <p class="text-muted mb-0">管理和配置不同类型的工单处理流程</p>
+                    </div>
+                    <div>
+                        <a href="/work-order-types/compare" class="btn btn-outline-primary me-2">
+                            <i class="bi bi-bar-chart me-1"></i>类型对比
+                        </a>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#statisticsModal">
+                            <i class="bi bi-graph-up me-1"></i>统计图表
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计概览 -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stats-card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-collection display-4 mb-3"></i>
+                        <h3 th:text="${#lists.size(workOrderTypes)}">4</h3>
+                        <p class="mb-0">工单类型总数</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-danger text-white h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-exclamation-triangle display-4 mb-3"></i>
+                        <h3 th:text="${#lists.size(urgentTypes)}">2</h3>
+                        <p class="mb-0">紧急类型</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-check2-circle display-4 mb-3"></i>
+                        <h3 th:text="${#lists.size(approvalRequiredTypes)}">3</h3>
+                        <p class="mb-0">需要审批</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-clock-history display-4 mb-3"></i>
+                        <h3 id="avgDeadline">0</h3>
+                        <p class="mb-0">平均时限(小时)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 工单类型卡片 -->
+        <div class="row">
+            <div class="col-md-6 col-lg-3 mb-4" th:each="type : ${workOrderTypes}">
+                <div class="card type-card h-100" th:data-type="${type.name()}" onclick="showTypeDetailFromCard(this)">
+                    <div class="card-body text-center">
+                        <div class="type-icon" th:class="${type.icon}"></div>
+                        <h5 class="card-title" th:text="${type.displayName}">工单类型</h5>
+                        <p class="card-text text-muted small" th:text="${type.description}">类型描述</p>
+                        
+                        <div class="mb-3">
+                            <span class="badge badge-custom" th:class="${type.cssClass}" th:text="${type.defaultPriority.name()}">优先级</span>
+                            <span class="badge bg-secondary badge-custom" th:text="${type.defaultDeadlineHours + '小时'}">时限</span>
+                        </div>
+                        
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="small text-muted">审批</div>
+                                <div>
+                                    <i th:class="${type.requiresApproval() ? 'bi bi-check-circle text-success' : 'bi bi-x-circle text-danger'}"></i>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="small text-muted">紧急</div>
+                                <div>
+                                    <i th:class="${type.requiresImmediate ? 'bi bi-lightning-fill text-warning' : 'bi bi-hourglass text-secondary'}"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <button class="btn btn-outline-primary btn-sm w-100" th:data-type="${type.name()}" onclick="showTypeDetailFromButton(this)">
+                            <i class="bi bi-eye me-1"></i>查看详情
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 类型对比表格 -->
+        <div class="row mt-5">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-table me-2"></i>类型特性对比
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover comparison-table">
+                                <thead>
+                                    <tr>
+                                        <th>工单类型</th>
+                                        <th>默认时限</th>
+                                        <th>默认优先级</th>
+                                        <th>需要审批</th>
+                                        <th>紧急处理</th>
+                                        <th>适用场景</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="type : ${workOrderTypes}">
+                                        <td>
+                                            <i th:class="${type.icon}"></i>
+                                            <span th:text="${type.displayName}" class="ms-2"></span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info" th:text="${type.defaultDeadlineHours + '小时'}"></span>
+                                        </td>
+                                        <td>
+                                            <span class="badge" th:class="${type.defaultPriority.name() == 'URGENT' ? 'bg-danger text-white' : (type.defaultPriority.name() == 'HIGH' ? 'bg-warning text-dark' : (type.defaultPriority.name() == 'MEDIUM' ? 'bg-info text-white' : 'bg-secondary text-white'))}" 
+                                                  th:text="${type.defaultPriority.name()}"></span>
+                                        </td>
+                                        <td>
+                                            <i th:class="${type.requiresApproval() ? 'bi bi-check-circle text-success' : 'bi bi-x-circle text-danger'}"></i>
+                                        </td>
+                                        <td>
+                                            <i th:class="${type.requiresImmediate ? 'bi bi-lightning-fill text-warning' : 'bi bi-hourglass text-secondary'}"></i>
+                                        </td>
+                                        <td class="small text-muted" th:text="${type.description}"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 类型详情模态框 -->
+    <div class="modal fade" id="typeDetailModal" tabindex="-1" aria-labelledby="typeDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="typeDetailModalLabel">
+                        <i id="detailIcon" class="me-2"></i>
+                        <span id="detailTitle">工单类型详情</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>基本信息</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td>类型名称</td>
+                                    <td id="detailDisplayName"></td>
+                                </tr>
+                                <tr>
+                                    <td>描述</td>
+                                    <td id="detailDescription"></td>
+                                </tr>
+                                <tr>
+                                    <td>默认时限</td>
+                                    <td id="detailDeadline"></td>
+                                </tr>
+                                <tr>
+                                    <td>默认优先级</td>
+                                    <td id="detailPriority"></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>处理特性</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td>需要审批</td>
+                                    <td id="detailApproval"></td>
+                                </tr>
+                                <tr>
+                                    <td>紧急处理</td>
+                                    <td id="detailImmediate"></td>
+                                </tr>
+                                <tr>
+                                    <td>默认状态</td>
+                                    <td id="detailStatus"></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h6>建议处理流程</h6>
+                        <div id="detailWorkflow" class="workflow-step"></div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>处理建议</h6>
+                        <div id="detailSuggestion" class="alert alert-info"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计图表模态框 -->
+    <div class="modal fade" id="statisticsModal" tabindex="-1" aria-labelledby="statisticsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="statisticsModalLabel">
+                        <i class="bi bi-graph-up me-2"></i>工单类型统计
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <canvas id="typeDistributionChart"></canvas>
+                        </div>
+                        <div class="col-md-6">
+                            <canvas id="deadlineChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        // 修复modal关闭后遮罩层问题
+        document.addEventListener('DOMContentLoaded', function() {
+            // 确保所有modal在关闭时正确清理遮罩层
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                modal.addEventListener('hidden.bs.modal', function() {
+                    // 移除可能残留的遮罩层
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                    
+                    // 恢复body的滚动
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                    document.body.classList.remove('modal-open');
+                });
+            });
+        });
+
+        // 从卡片点击事件处理
+        function showTypeDetailFromCard(element) {
+            const typeName = element.getAttribute('data-type');
+            showTypeDetail(typeName);
+        }
+
+        // 从按钮点击事件处理  
+        function showTypeDetailFromButton(element) {
+            const typeName = element.getAttribute('data-type');
+            showTypeDetail(typeName);
+        }
+
+        // 计算平均截止时间
+        document.addEventListener('DOMContentLoaded', function() {
+            const types = /*[[${workOrderTypes}]]*/ [];
+            if (types.length > 0) {
+                const totalHours = types.reduce((sum, type) => sum + type.defaultDeadlineHours, 0);
+                const avgHours = Math.round(totalHours / types.length);
+                document.getElementById('avgDeadline').textContent = avgHours;
+            }
+        });
+
+        // 显示类型详情
+        function showTypeDetail(typeName) {
+            fetch(`/work-order-types/api/${typeName}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('detailIcon').className = data.icon;
+                    document.getElementById('detailTitle').textContent = data.displayName;
+                    document.getElementById('detailDisplayName').textContent = data.displayName;
+                    document.getElementById('detailDescription').textContent = data.description;
+                    document.getElementById('detailDeadline').innerHTML = `<span class="badge bg-info">${data.defaultDeadlineHours}小时</span>`;
+                    document.getElementById('detailPriority').innerHTML = `<span class="badge ${data.defaultPriority === 'URGENT' ? 'bg-danger' : (data.defaultPriority === 'HIGH' ? 'bg-warning' : (data.defaultPriority === 'MEDIUM' ? 'bg-info' : 'bg-secondary'))}">${data.defaultPriority}</span>`;
+                    document.getElementById('detailApproval').innerHTML = data.requiresApproval ? '<i class="bi bi-check-circle text-success"></i> 是' : '<i class="bi bi-x-circle text-danger"></i> 否';
+                    document.getElementById('detailImmediate').innerHTML = data.requiresImmediate ? '<i class="bi bi-lightning-fill text-warning"></i> 是' : '<i class="bi bi-hourglass text-secondary"></i> 否';
+                    document.getElementById('detailStatus').innerHTML = `<span class="badge bg-primary">${data.defaultStatus}</span>`;
+                    document.getElementById('detailWorkflow').textContent = data.suggestedWorkflow;
+                    document.getElementById('detailSuggestion').textContent = data.processingSuggestion;
+                    
+                    // 使用新的方式创建和显示modal
+                    const modal = new bootstrap.Modal(document.getElementById('typeDetailModal'), {
+                        backdrop: true,
+                        keyboard: true,
+                        focus: true
+                    });
+                    modal.show();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('获取类型详情失败，请稍后重试');
+                });
+        }
+
+        // 统计图表
+        document.addEventListener('DOMContentLoaded', function() {
+            const statisticsModal = document.getElementById('statisticsModal');
+            if (statisticsModal) {
+                statisticsModal.addEventListener('shown.bs.modal', function() {
+                    loadStatisticsCharts();
+                });
+            }
+        });
+
+        function loadStatisticsCharts() {
+            fetch('/work-order-types/api/statistics')
+                .then(response => response.json())
+                .then(data => {
+                    // 清除现有图表
+                    const typeCtx = document.getElementById('typeDistributionChart');
+                    const deadlineCtx = document.getElementById('deadlineChart');
+                    
+                    if (typeCtx && deadlineCtx) {
+                        // 类型分布饼图
+                        new Chart(typeCtx.getContext('2d'), {
+                            type: 'pie',
+                            data: {
+                                labels: Object.keys(data.deadlineGroups || {}),
+                                datasets: [{
+                                    data: Object.values(data.deadlineGroups || {}),
+                                    backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#17a2b8']
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '按时限分组分布'
+                                    }
+                                }
+                            }
+                        });
+
+                        // 截止时间柱状图
+                        const types = /*[[${workOrderTypes}]]*/ [];
+                        if (types && types.length > 0) {
+                            new Chart(deadlineCtx.getContext('2d'), {
+                                type: 'bar',
+                                data: {
+                                    labels: types.map(t => t.displayName),
+                                    datasets: [{
+                                        label: '默认时限(小时)',
+                                        data: types.map(t => t.defaultDeadlineHours),
+                                        backgroundColor: ['#dc3545', '#fd7e14', '#17a2b8', '#6c757d']
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    plugins: {
+                                        title: {
+                                            display: true,
+                                            text: '各类型默认时限对比'
+                                        }
+                                    },
+                                    scales: {
+                                        y: {
+                                            beginAtZero: true,
+                                            title: {
+                                                display: true,
+                                                text: '小时'
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading statistics:', error);
+                    alert('加载统计数据失败，请稍后重试');
+                });
+        }
+    </script>
+</body>
+</html> 

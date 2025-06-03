@@ -5,10 +5,12 @@ import com.example.opsworkordersystem.entity.OperationRecord;
 import com.example.opsworkordersystem.entity.Priority;
 import com.example.opsworkordersystem.entity.User;
 import com.example.opsworkordersystem.entity.WorkOrder;
+import com.example.opsworkordersystem.entity.WorkOrderType;
 import com.example.opsworkordersystem.repository.UserRepository;
 import com.example.opsworkordersystem.service.ApprovalRecordService;
 import com.example.opsworkordersystem.service.OperationRecordService;
 import com.example.opsworkordersystem.service.WorkOrderService;
+import com.example.opsworkordersystem.service.WorkOrderTypeService;
 import com.example.opsworkordersystem.entity.Status;  // 引入 Status 枚举
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -39,12 +41,16 @@ public class WorkOrderController {
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private WorkOrderTypeService workOrderTypeService;
 
     // 显示工单列表页面
     @GetMapping
     public String listWorkOrders(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String priority,
+            @RequestParam(required = false) String type,
             @RequestParam(required = false) String keywords,
             Model model) {
         
@@ -62,6 +68,18 @@ public class WorkOrderController {
         } else {
             // 如果没有状态参数，则返回所有工单
             workOrders = workOrderService.getAllWorkOrders(); // 已使用预加载
+        }
+        
+        // 根据工单类型过滤
+        if (type != null && !type.isEmpty() && !workOrders.isEmpty()) {
+            try {
+                WorkOrderType typeEnum = WorkOrderType.valueOf(type);
+                workOrders = workOrders.stream()
+                    .filter(wo -> wo.getWorkOrderType() == typeEnum)
+                    .toList();
+            } catch (IllegalArgumentException e) {
+                // 类型参数不合法，不做处理
+            }
         }
         
         // 根据优先级过滤 (如果状态已经过滤过了，就在过滤结果上继续过滤)
@@ -90,6 +108,7 @@ public class WorkOrderController {
         // 将筛选条件保存到模型中，用于回显到表单
         model.addAttribute("statusFilter", status);
         model.addAttribute("priorityFilter", priority);
+        model.addAttribute("typeFilter", type);
         model.addAttribute("keywordsFilter", keywords);
         model.addAttribute("workOrders", workOrders);
         
@@ -139,7 +158,25 @@ public class WorkOrderController {
             workOrder.setTitle((String) payload.get("title"));
             workOrder.setDescription((String) payload.get("description"));
             
-            // 处理优先级字段
+            // 处理工单类型字段
+            String workOrderTypeStr = (String) payload.get("workOrderType");
+            WorkOrderType workOrderType = null;
+            System.out.println("WorkOrderType字段值: '" + workOrderTypeStr + "'");
+            if (workOrderTypeStr != null && !workOrderTypeStr.isEmpty()) {
+                try {
+                    workOrderType = WorkOrderType.valueOf(workOrderTypeStr.trim().toUpperCase());
+                    workOrder.setWorkOrderType(workOrderType);
+                    System.out.println("成功设置工单类型: " + workOrderType);
+                    
+                    // 根据工单类型设置默认属性
+                    workOrderTypeService.setDefaultPropertiesByType(workOrder, workOrderType);
+                } catch (IllegalArgumentException e) {
+                    System.out.println("无效的工单类型值: '" + workOrderTypeStr + "'");
+                    throw new IllegalArgumentException("无效的工单类型值: " + workOrderTypeStr);
+                }
+            }
+            
+            // 处理优先级字段（如果前端手动修改了优先级，则覆盖默认值）
             String priorityStr = (String) payload.get("priority");
             System.out.println("Priority字段值: '" + priorityStr + "'");
             if (priorityStr != null && !priorityStr.isEmpty()) {
@@ -151,12 +188,24 @@ public class WorkOrderController {
                     System.out.println("无效的优先级值: '" + priorityStr + "'");
                     throw new IllegalArgumentException("无效的优先级值: " + priorityStr);
                 }
-            } else {
+            } else if (workOrderType == null) {
+                // 只有在没有设置工单类型的情况下才使用默认优先级
                 System.out.println("未提供优先级，使用默认值: MEDIUM");
-                workOrder.setPriority(Priority.MEDIUM); // 默认中等优先级
+                workOrder.setPriority(Priority.MEDIUM);
             }
             
-            workOrder.setStatus(Status.valueOf((String) payload.get("status")));
+            // 处理状态字段
+            String statusStr = (String) payload.get("status");
+            if (statusStr != null && !statusStr.isEmpty()) {
+                workOrder.setStatus(Status.valueOf(statusStr));
+            } else if (workOrderType != null) {
+                // 如果设置了工单类型，使用类型的默认状态
+                workOrder.setStatus(workOrderType.getDefaultStatus());
+            } else {
+                // 默认状态
+                workOrder.setStatus(Status.PENDING);
+            }
+            
             workOrder.setDepartment((String) payload.get("department"));
             
             // 获取当前登录用户作为创建人
@@ -190,18 +239,33 @@ public class WorkOrderController {
                     LocalDateTime deadline = LocalDateTime.parse(deadlineStr.substring(0, 19)); // 去掉毫秒部分
                     workOrder.setDeadline(deadline);
                 } catch (Exception e) {
-                    // 如果解析失败，使用基于优先级的默认截止时间
-                    workOrder.calculateDeadlineBasedOnPriority();
+                    // 如果解析失败，根据工单类型或优先级计算默认截止时间
+                    if (workOrderType != null) {
+                        workOrder.calculateDeadlineBasedOnType();
+                    } else {
+                        workOrder.calculateDeadlineBasedOnPriority();
+                    }
                 }
             } else {
-                // 没有自定义截止时间，计算基于优先级的默认截止时间
-                workOrder.calculateDeadlineBasedOnPriority();
+                // 没有自定义截止时间，根据工单类型或优先级计算默认截止时间
+                if (workOrderType != null) {
+                    workOrder.calculateDeadlineBasedOnType();
+                } else {
+                    workOrder.calculateDeadlineBasedOnPriority();
+                }
             }
+            
+            // 设置创建时间和更新时间
+            LocalDateTime now = LocalDateTime.now();
+            workOrder.setCreatedAt(now);
+            workOrder.setUpdatedAt(now);
             
             WorkOrder createdWorkOrder = workOrderService.createWorkOrder(workOrder);
             return ResponseEntity.ok(createdWorkOrder);
         } catch (Exception e) {
             // 记录错误并返回400错误响应
+            System.err.println("创建工单时发生错误: " + e.getMessage());
+            e.printStackTrace();
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("error", "创建工单失败: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);

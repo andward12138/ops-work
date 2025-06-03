@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工单类型对比 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .comparison-matrix {
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .comparison-matrix th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            padding: 15px;
+            text-align: center;
+        }
+        .comparison-matrix td {
+            padding: 12px;
+            text-align: center;
+            vertical-align: middle;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .type-header {
+            background: #f8f9fa;
+            font-weight: 600;
+            border-right: 2px solid #dee2e6;
+        }
+        .feature-cell {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .feature-cell:hover {
+            background: #e3f2fd;
+            transform: scale(1.05);
+        }
+        .radar-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            height: 450px;
+        }
+        .workflow-comparison {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+        }
+        .score-badge {
+            font-size: 1.2rem;
+            padding: 8px 15px;
+            border-radius: 25px;
+        }
+        .timeline-step {
+            padding: 10px 15px;
+            margin: 5px 0;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+        .step-emergency { border-left-color: #dc3545; background: #fff5f5; }
+        .step-incident { border-left-color: #fd7e14; background: #fff8f1; }
+        .step-maintenance { border-left-color: #17a2b8; background: #f1f9fb; }
+        .step-request { border-left-color: #6c757d; background: #f8f9fa; }
+        
+        #radarChart, #responseTimeChart {
+            max-height: 400px !important;
+            height: 400px !important;
+        }
+        
+        .container {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        
+        .card {
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/work-order-types}">类型管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/statistics}">统计报表</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="mb-1">
+                            <i class="bi bi-bar-chart text-primary me-2"></i>工单类型对比分析
+                        </h2>
+                        <p class="text-muted mb-0">深入分析各工单类型的特性差异与适用场景</p>
+                    </div>
+                    <div>
+                        <a th:href="@{/work-order-types}" class="btn btn-outline-secondary me-2">
+                            <i class="bi bi-arrow-left me-1"></i>返回管理
+                        </a>
+                        <button class="btn btn-primary" onclick="exportComparison()">
+                            <i class="bi bi-download me-1"></i>导出对比
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 快速概览卡片 -->
+        <div class="row mb-4">
+            <div class="col-md-6 col-lg-3 mb-3" th:each="type : ${workOrderTypes}">
+                <div class="card h-100" th:style="'border-left: 4px solid ' + ${@workOrderTypeService.getTypeColorCode(type)}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="card-title" th:text="${type.displayName}">类型名称</h6>
+                                <div class="small text-muted mb-2" th:text="${type.description}">描述</div>
+                            </div>
+                            <i th:class="${type.icon}" th:style="'color: ' + ${@workOrderTypeService.getTypeColorCode(type)} + '; font-size: 1.5rem;'"></i>
+                        </div>
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="score-badge bg-info text-white" th:text="${type.defaultDeadlineHours}">时限</div>
+                                <div class="small text-muted mt-1">小时</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="score-badge" th:class="${type.defaultPriority.name() == 'URGENT' ? 'bg-danger text-white' : (type.defaultPriority.name() == 'HIGH' ? 'bg-warning text-dark' : (type.defaultPriority.name() == 'MEDIUM' ? 'bg-info text-white' : 'bg-secondary text-white'))}" 
+                                     th:text="${type.defaultPriority.name()}">优先级</div>
+                                <div class="small text-muted mt-1">默认</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 详细对比矩阵 -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-table me-2"></i>详细特性对比矩阵
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table comparison-matrix mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 200px;">对比维度</th>
+                                        <th th:each="type : ${workOrderTypes}" th:style="'background-color: ' + ${@workOrderTypeService.getTypeColorCode(type)}">
+                                            <i th:class="${type.icon}" class="me-2"></i>
+                                            <span th:text="${type.displayName}"></span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="dimension : ${comparisonData.keySet()}">
+                                        <td class="type-header" th:text="${dimension}">维度</td>
+                                        <td class="feature-cell" th:each="type : ${workOrderTypes}">
+                                            <div th:switch="${dimension}">
+                                                <span th:case="'截止时间'" class="badge bg-info" th:text="${comparisonData.get(dimension).get(type)}"></span>
+                                                <span th:case="'默认优先级'" class="badge" 
+                                                      th:class="${comparisonData.get(dimension).get(type).toString().equals('URGENT') ? 'bg-danger' : (comparisonData.get(dimension).get(type).toString().equals('HIGH') ? 'bg-warning' : (comparisonData.get(dimension).get(type).toString().equals('MEDIUM') ? 'bg-info' : 'bg-secondary'))}"
+                                                      th:text="${comparisonData.get(dimension).get(type)}"></span>
+                                                <span th:case="'需要审批'">
+                                                    <i th:class="${comparisonData.get(dimension).get(type).toString().equals('是') ? 'bi bi-check-circle text-success fs-5' : 'bi bi-x-circle text-danger fs-5'}"></i>
+                                                </span>
+                                                <span th:case="'紧急处理'">
+                                                    <i th:class="${comparisonData.get(dimension).get(type).toString().equals('是') ? 'bi bi-lightning-fill text-warning fs-5' : 'bi bi-hourglass text-secondary fs-5'}"></i>
+                                                </span>
+                                                <span th:case="*" th:text="${comparisonData.get(dimension).get(type)}"></span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 可视化对比 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="radar-container">
+                    <h5 class="mb-3">
+                        <i class="bi bi-radar me-2"></i>类型特性雷达图
+                    </h5>
+                    <div style="position: relative; height: 350px; width: 100%;">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="radar-container">
+                    <h5 class="mb-3">
+                        <i class="bi bi-speedometer2 me-2"></i>响应时间对比
+                    </h5>
+                    <div style="position: relative; height: 350px; width: 100%;">
+                        <canvas id="responseTimeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 处理流程对比 -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="workflow-comparison">
+                    <h5 class="mb-4">
+                        <i class="bi bi-diagram-3 me-2"></i>处理流程对比
+                    </h5>
+                    <div class="row">
+                        <div class="col-md-6 col-lg-3 mb-3" th:each="type : ${workOrderTypes}">
+                            <div class="card bg-white text-dark">
+                                <div class="card-header" th:style="'background-color: ' + ${@workOrderTypeService.getTypeColorCode(type)} + '; color: white;'">
+                                    <h6 class="mb-0">
+                                        <i th:class="${type.icon}" class="me-2"></i>
+                                        <span th:text="${type.displayName}"></span>
+                                    </h6>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div th:switch="${type.name()}">
+                                        <div th:case="'EMERGENCY'">
+                                            <div class="timeline-step step-emergency">1. 立即分配</div>
+                                            <div class="timeline-step step-emergency">2. 紧急响应</div>
+                                            <div class="timeline-step step-emergency">3. 快速解决</div>
+                                            <div class="timeline-step step-emergency">4. 事后报告</div>
+                                        </div>
+                                        <div th:case="'INCIDENT'">
+                                            <div class="timeline-step step-incident">1. 快速分析</div>
+                                            <div class="timeline-step step-incident">2. 应急修复</div>
+                                            <div class="timeline-step step-incident">3. 根因分析</div>
+                                            <div class="timeline-step step-incident">4. 预防措施</div>
+                                        </div>
+                                        <div th:case="'MAINTENANCE'">
+                                            <div class="timeline-step step-maintenance">1. 计划审批</div>
+                                            <div class="timeline-step step-maintenance">2. 准备工作</div>
+                                            <div class="timeline-step step-maintenance">3. 执行维护</div>
+                                            <div class="timeline-step step-maintenance">4. 验证测试</div>
+                                            <div class="timeline-step step-maintenance">5. 文档更新</div>
+                                        </div>
+                                        <div th:case="'REQUEST'">
+                                            <div class="timeline-step step-request">1. 需求审批</div>
+                                            <div class="timeline-step step-request">2. 方案设计</div>
+                                            <div class="timeline-step step-request">3. 开发实施</div>
+                                            <div class="timeline-step step-request">4. 测试验证</div>
+                                            <div class="timeline-step step-request">5. 上线部署</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 适用场景对比 -->
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-lightbulb me-2"></i>适用场景与最佳实践
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 col-lg-3 mb-4" th:each="type : ${workOrderTypes}">
+                                <div class="card h-100" th:style="'border-top: 4px solid ' + ${@workOrderTypeService.getTypeColorCode(type)}">
+                                    <div class="card-body">
+                                        <h6 class="card-title d-flex align-items-center">
+                                            <i th:class="${type.icon}" th:style="'color: ' + ${@workOrderTypeService.getTypeColorCode(type)}" class="me-2"></i>
+                                            <span th:text="${type.displayName}"></span>
+                                        </h6>
+                                        
+                                        <div class="mb-3">
+                                            <strong>适用场景：</strong>
+                                            <div class="small text-muted" th:text="${type.description}"></div>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <strong>处理建议：</strong>
+                                            <div class="small" th:text="${@workOrderTypeService.getProcessingSuggestion(type)}"></div>
+                                        </div>
+                                        
+                                        <div class="text-center">
+                                            <span class="badge bg-primary" th:text="'时限: ' + ${type.defaultDeadlineHours} + '小时'"></span>
+                                            <span class="badge" th:class="${type.requiresImmediate ? 'bg-danger' : 'bg-success'}" 
+                                                  th:text="${type.requiresImmediate ? '紧急' : '常规'}"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            createRadarChart();
+            createResponseTimeChart();
+        });
+
+        function createRadarChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            const types = /*[[${workOrderTypes}]]*/ [];
+            
+            // 构建雷达图数据
+            const datasets = types.map(type => ({
+                label: type.displayName,
+                data: [
+                    type.requiresImmediate ? 100 : 50, // 紧急程度
+                    type.defaultPriority === 'URGENT' ? 100 : (type.defaultPriority === 'HIGH' ? 80 : (type.defaultPriority === 'MEDIUM' ? 60 : 40)), // 优先级
+                    type.requiresApproval ? 100 : 0, // 审批要求
+                    Math.max(0, 100 - (type.defaultDeadlineHours * 10)), // 时间紧迫性（倒置）
+                    type.name === 'MAINTENANCE' ? 100 : (type.name === 'REQUEST' ? 80 : 60) // 复杂度
+                ],
+                backgroundColor: type.colorCode ? type.colorCode + '20' : 'rgba(54, 162, 235, 0.2)',
+                borderColor: type.colorCode || 'rgba(54, 162, 235, 1)',
+                borderWidth: 2
+            }));
+
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['紧急程度', '优先级', '审批要求', '时间紧迫性', '复杂度'],
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // 允许图表适应容器
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                stepSize: 20
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function createResponseTimeChart() {
+            const ctx = document.getElementById('responseTimeChart').getContext('2d');
+            const types = /*[[${workOrderTypes}]]*/ [];
+            
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: types.map(t => t.displayName),
+                    datasets: [{
+                        data: types.map(t => t.defaultDeadlineHours),
+                        backgroundColor: types.map(t => t.colorCode || '#6c757d'),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // 允许图表适应容器
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + '小时';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function exportComparison() {
+            // 简单的导出功能 - 可以扩展为PDF或Excel导出
+            const printContent = document.querySelector('.container').innerHTML;
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>工单类型对比分析</title>
+                    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+                    <style>
+                        body { padding: 20px; }
+                        .comparison-matrix th { background: #333 !important; }
+                        .workflow-comparison { background: #f8f9fa !important; color: #333 !important; }
+                    </style>
+                </head>
+                <body>
+                    <h1>工单类型对比分析报告</h1>
+                    <div class="container">${printContent}</div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
+    </script>
+</body>
+</html> 
