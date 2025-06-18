@@ -36,14 +36,12 @@ public class Department {
     @JsonIgnore  // 忽略子部门列表以避免循环引用
     private List<Department> children; // 下级部门
 
-    // 新增：联系人关联
-    @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonIgnore  // 忽略联系人列表以减少序列化复杂度
+    // 联系人关联 - 使用@Transient避免序列化问题
+    @Transient
     private List<DepartmentContact> contacts; // 部门联系人
 
-    // 新增：权限关联
-    @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonIgnore  // 忽略权限列表以减少序列化复杂度
+    // 权限关联 - 使用@Transient避免序列化问题
+    @Transient
     private List<DepartmentPermission> permissions; // 部门权限
 
     @Column(name = "description")

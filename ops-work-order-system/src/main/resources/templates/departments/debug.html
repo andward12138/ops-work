@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>部门调试工具</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .debug-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+        .department-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .department-item.inactive {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .department-item.active {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="mb-4">
+                    <i class="bi bi-tools"></i> 部门调试工具
+                </h1>
+                
+                <!-- 统计信息 -->
+                <div class="debug-section">
+                    <h3><i class="bi bi-bar-chart"></i> 部门统计信息</h3>
+                    <div class="row" id="statsContainer">
+                        <div class="col-md-3">
+                            <div class="stat-card text-center">
+                                <h4 id="totalCount">-</h4>
+                                <p>总部门数</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card text-center">
+                                <h4 id="activeCount">-</h4>
+                                <p>活跃部门</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card text-center">
+                                <h4 id="inactiveCount">-</h4>
+                                <p>非活跃部门</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card text-center">
+                                <h4 id="rootCount">-</h4>
+                                <p>顶级部门</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="debug-section">
+                    <h3><i class="bi bi-gear"></i> 修复操作</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <button class="btn btn-primary btn-lg w-100" onclick="clearCache()">
+                                <i class="bi bi-arrow-clockwise"></i> 清理缓存
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-success btn-lg w-100" onclick="activateAllDepartments()">
+                                <i class="bi bi-check-circle"></i> 激活所有部门
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 部门列表 -->
+                <div class="debug-section">
+                    <h3><i class="bi bi-list"></i> 所有部门详情</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>API接口数据</h5>
+                            <div id="apiDepartmentsList"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>调试接口数据</h5>
+                            <div id="debugDepartmentsList"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作日志 -->
+                <div class="debug-section">
+                    <h3><i class="bi bi-journal"></i> 操作日志</h3>
+                    <div id="operationLog" style="height: 200px; overflow-y: auto; background: #000; color: #0f0; padding: 10px; font-family: monospace;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStatistics();
+            loadDepartmentData();
+        });
+
+        // 记录操作日志
+        function log(message) {
+            const logContainer = document.getElementById('operationLog');
+            const time = new Date().toLocaleTimeString();
+            logContainer.innerHTML += `[${time}] ${message}\n`;
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // 加载统计信息
+        function loadStatistics() {
+            log('开始加载部门统计信息...');
+            fetch('/api/departments/debug/stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('totalCount').textContent = data.total || 0;
+                    document.getElementById('activeCount').textContent = data.active || 0;
+                    document.getElementById('inactiveCount').textContent = data.inactive || 0;
+                    document.getElementById('rootCount').textContent = data.withoutParent || 0;
+                    log('统计信息加载完成');
+                })
+                .catch(error => {
+                    log('统计信息加载失败: ' + error.message);
+                });
+        }
+
+        // 加载部门数据
+        function loadDepartmentData() {
+            log('开始加载部门数据...');
+            
+            // 加载API接口数据
+            fetch('/api/departments')
+                .then(response => response.json())
+                .then(data => {
+                    renderDepartmentList(data, 'apiDepartmentsList');
+                    log(`API接口返回 ${data.length} 个部门`);
+                })
+                .catch(error => {
+                    document.getElementById('apiDepartmentsList').innerHTML = 
+                        '<div class="alert alert-danger">API接口数据加载失败: ' + error.message + '</div>';
+                    log('API接口数据加载失败: ' + error.message);
+                });
+
+            // 加载调试接口数据
+            fetch('/api/departments/debug/all')
+                .then(response => response.json())
+                .then(data => {
+                    renderDepartmentList(data, 'debugDepartmentsList');
+                    log(`调试接口返回 ${data.length} 个部门`);
+                })
+                .catch(error => {
+                    document.getElementById('debugDepartmentsList').innerHTML = 
+                        '<div class="alert alert-danger">调试接口数据加载失败: ' + error.message + '</div>';
+                    log('调试接口数据加载失败: ' + error.message);
+                });
+        }
+
+        // 渲染部门列表
+        function renderDepartmentList(departments, containerId) {
+            const container = document.getElementById(containerId);
+            if (!departments || departments.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">没有部门数据</div>';
+                return;
+            }
+
+            let html = '';
+            departments.forEach(dept => {
+                const isActive = dept.isActive;
+                const statusClass = isActive ? 'active' : 'inactive';
+                const statusText = isActive ? '活跃' : '非活跃';
+                
+                html += `
+                    <div class="department-item ${statusClass}">
+                        <strong>ID: ${dept.id}</strong> - ${dept.name || '未命名'}
+                        <br>
+                        <small>
+                            状态: <span class="badge ${isActive ? 'bg-success' : 'bg-danger'}">${statusText}</span>
+                            | 类型: ${dept.type || '未知'}
+                            | 编码: ${dept.code || '无'}
+                        </small>
+                        ${dept.description ? `<br><small class="text-muted">${dept.description}</small>` : ''}
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // 清理缓存
+        function clearCache() {
+            log('开始清理缓存...');
+            fetch('/api/departments/fix/clear-cache', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    log('缓存清理成功');
+                    // 重新加载数据
+                    setTimeout(() => {
+                        loadStatistics();
+                        loadDepartmentData();
+                    }, 1000);
+                } else {
+                    log('缓存清理失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                log('缓存清理请求失败: ' + error.message);
+            });
+        }
+
+        // 激活所有部门
+        function activateAllDepartments() {
+            log('开始激活所有部门...');
+            fetch('/api/departments/fix/activate-all', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    log('所有部门激活成功');
+                    log('修复前统计: ' + JSON.stringify(data.beforeStats));
+                    log('修复后统计: ' + JSON.stringify(data.afterStats));
+                    // 重新加载数据
+                    setTimeout(() => {
+                        loadStatistics();
+                        loadDepartmentData();
+                    }, 1000);
+                } else {
+                    log('部门激活失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                log('部门激活请求失败: ' + error.message);
+            });
+        }
+    </script>
+</body>
+</html> 

@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
 
 @Service
 @Transactional
@@ -239,5 +241,52 @@ public class DepartmentService {
         department.setIsActive(false);
         department.setUpdatedAt(LocalDateTime.now());
         return departmentRepository.save(department);
+    }
+
+    /**
+     * 清理部门缓存
+     */
+    @CacheEvict(value = "departments", allEntries = true)
+    public void clearDepartmentCache() {
+        // 清理所有部门相关缓存
+    }
+
+    /**
+     * 获取所有部门（包括非活跃的）- 用于调试
+     */
+    @Transactional(readOnly = true)
+    public List<Department> getAllDepartmentsIncludingInactive() {
+        return departmentRepository.findAll();
+    }
+
+    /**
+     * 批量更新部门状态为活跃
+     */
+    @CacheEvict(value = "departments", allEntries = true)
+    public void activateAllDepartments() {
+        List<Department> allDepartments = departmentRepository.findAll();
+        for (Department dept : allDepartments) {
+            if (!dept.getIsActive()) {
+                dept.setIsActive(true);
+                dept.setUpdatedAt(LocalDateTime.now());
+            }
+        }
+        departmentRepository.saveAll(allDepartments);
+    }
+
+    /**
+     * 获取部门统计信息 - 用于调试
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Long> getDepartmentStatistics() {
+        List<Department> allDepartments = departmentRepository.findAll();
+        Map<String, Long> stats = new HashMap<>();
+        
+        stats.put("total", (long) allDepartments.size());
+        stats.put("active", allDepartments.stream().mapToLong(dept -> dept.getIsActive() ? 1 : 0).sum());
+        stats.put("inactive", allDepartments.stream().mapToLong(dept -> !dept.getIsActive() ? 1 : 0).sum());
+        stats.put("withoutParent", allDepartments.stream().mapToLong(dept -> dept.getParent() == null ? 1 : 0).sum());
+        
+        return stats;
     }
 } 

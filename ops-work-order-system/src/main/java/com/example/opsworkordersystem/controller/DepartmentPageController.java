@@ -32,4 +32,12 @@ public class DepartmentPageController {
     public String permissions(@PathVariable Integer departmentId) {
         return "departments/permissions";
     }
+
+    /**
+     * 部门调试页面
+     */
+    @GetMapping("/debug")
+    public String debug() {
+        return "departments/debug";
+    }
 } 

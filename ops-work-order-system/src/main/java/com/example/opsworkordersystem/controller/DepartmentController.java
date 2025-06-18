@@ -8,7 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/departments")
@@ -118,6 +120,75 @@ public class DepartmentController {
             return ResponseEntity.ok(departments);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 调试：获取所有部门（包括非活跃的）
+     */
+    @GetMapping("/debug/all")
+    public ResponseEntity<List<Department>> getAllDepartmentsDebug() {
+        try {
+            List<Department> departments = departmentService.getAllDepartmentsIncludingInactive();
+            return ResponseEntity.ok(departments);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 调试：获取部门统计信息
+     */
+    @GetMapping("/debug/stats")
+    public ResponseEntity<Map<String, Long>> getDepartmentStats() {
+        try {
+            Map<String, Long> stats = departmentService.getDepartmentStatistics();
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 修复：清理部门缓存
+     */
+    @PostMapping("/fix/clear-cache")
+    public ResponseEntity<Map<String, String>> clearDepartmentCache() {
+        try {
+            departmentService.clearDepartmentCache();
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "部门缓存已清理");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "error");
+            response.put("message", "缓存清理失败: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    /**
+     * 修复：激活所有部门
+     */
+    @PostMapping("/fix/activate-all")
+    public ResponseEntity<Map<String, Object>> activateAllDepartments() {
+        try {
+            Map<String, Long> beforeStats = departmentService.getDepartmentStatistics();
+            departmentService.activateAllDepartments();
+            Map<String, Long> afterStats = departmentService.getDepartmentStatistics();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "所有部门已激活");
+            response.put("beforeStats", beforeStats);
+            response.put("afterStats", afterStats);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "error");
+            response.put("message", "激活失败: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
         }
     }
 } 
