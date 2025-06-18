@@ -4,6 +4,8 @@ import com.example.opsworkordersystem.entity.Department;
 import com.example.opsworkordersystem.entity.DepartmentType;
 import com.example.opsworkordersystem.repository.DepartmentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,7 @@ public class DepartmentService {
      * 获取所有部门
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "departments", key = "'all_active'")
     public List<Department> getAllDepartments() {
         return departmentRepository.findByIsActive(true);
     }
@@ -30,6 +33,7 @@ public class DepartmentService {
      * 根据ID获取部门
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "departments", key = "'id_' + #id")
     public Department getDepartmentById(Integer id) {
         return departmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("部门不存在: " + id));

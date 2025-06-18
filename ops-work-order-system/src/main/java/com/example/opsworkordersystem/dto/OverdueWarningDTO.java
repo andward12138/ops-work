@@ -127,7 +127,7 @@ public class OverdueWarningDTO {
                 this.overdueHours = java.time.Duration.between(deadline, now).toHours();
                 
                 // 根据超时时间和优先级确定预警级别
-                if (priority == Priority.HIGH) {
+                if (priority == Priority.HIGH || priority == Priority.URGENT) {
                     if (overdueHours <= 4) {
                         this.warningLevel = "轻微";
                     } else if (overdueHours <= 12) {
@@ -172,6 +172,7 @@ public class OverdueWarningDTO {
             case LOW: return "低";
             case MEDIUM: return "中";
             case HIGH: return "高";
+            case URGENT: return "紧急";
             default: return "未知";
         }
     }

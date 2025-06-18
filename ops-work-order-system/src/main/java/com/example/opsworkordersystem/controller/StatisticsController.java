@@ -13,6 +13,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -210,9 +213,15 @@ public class StatisticsController {
     @GetMapping("/export/daily")
     public ResponseEntity<byte[]> exportDailyStatisticsExcel(
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) throws IOException {
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) throws IOException, UnsupportedEncodingException {
         
         List<DailyStatisticsDTO> dailyStats = statisticsService.getDailyStatistics(startDate, endDate);
+        
+        // 验证数据不为空
+        if (dailyStats == null || dailyStats.isEmpty()) {
+            throw new IOException("没有找到指定日期范围内的统计数据");
+        }
+        
         byte[] excelData = excelExportService.exportDailyStatistics(dailyStats);
         
         String fileName = String.format("每日工单统计_%s至%s.xlsx", 
@@ -228,9 +237,15 @@ public class StatisticsController {
     @GetMapping("/export/weekly")
     public ResponseEntity<byte[]> exportWeeklyStatisticsExcel(
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) throws IOException {
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) throws IOException, UnsupportedEncodingException {
         
         List<WeeklyStatisticsDTO> weeklyStats = statisticsService.getWeeklyStatistics(startDate, endDate);
+        
+        // 验证数据不为空
+        if (weeklyStats == null || weeklyStats.isEmpty()) {
+            throw new IOException("没有找到指定日期范围内的周统计数据");
+        }
+        
         byte[] excelData = excelExportService.exportWeeklyStatistics(weeklyStats);
         
         String fileName = String.format("每周工单统计_%s至%s.xlsx", 
@@ -244,8 +259,14 @@ public class StatisticsController {
      * 导出超时预警Excel
      */
     @GetMapping("/export/overdue")
-    public ResponseEntity<byte[]> exportOverdueWarningsExcel() throws IOException {
+    public ResponseEntity<byte[]> exportOverdueWarningsExcel() throws IOException, UnsupportedEncodingException {
         List<OverdueWarningDTO> overdueWarnings = statisticsService.getOverdueWarnings();
+        
+        // 验证数据不为空
+        if (overdueWarnings == null || overdueWarnings.isEmpty()) {
+            throw new IOException("当前没有超时预警数据");
+        }
+        
         byte[] excelData = excelExportService.exportOverdueWarnings(overdueWarnings);
         
         String fileName = String.format("超时预警列表_%s.xlsx", 
@@ -260,9 +281,15 @@ public class StatisticsController {
     @GetMapping("/export/department-efficiency")
     public ResponseEntity<byte[]> exportDepartmentEfficiencyExcel(
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) throws IOException {
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) throws IOException, UnsupportedEncodingException {
         
         List<DepartmentEfficiencyDTO> efficiencyStats = statisticsService.getDepartmentEfficiency(startDate, endDate);
+        
+        // 验证数据不为空
+        if (efficiencyStats == null || efficiencyStats.isEmpty()) {
+            throw new IOException("没有找到指定日期范围内的部门效率数据");
+        }
+        
         byte[] excelData = excelExportService.exportDepartmentEfficiency(efficiencyStats);
         
         String fileName = String.format("部门效率分析_%s至%s.xlsx", 
@@ -273,13 +300,80 @@ public class StatisticsController {
     }
 
     /**
+     * 测试Excel导出功能
+     */
+    @GetMapping("/export/test")
+    public ResponseEntity<byte[]> exportTestExcel() throws IOException, UnsupportedEncodingException {
+        try {
+            // 创建一个简单的测试Excel
+            byte[] testExcelData = createTestExcel();
+            String fileName = "测试文件_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".xlsx";
+            
+            return createExcelResponse(testExcelData, fileName);
+        } catch (Exception e) {
+            throw new IOException("Excel导出测试失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 创建测试Excel文件
+     */
+    private byte[] createTestExcel() throws IOException {
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("测试数据");
+            
+            // 创建表头
+            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            headerRow.createCell(0).setCellValue("列1");
+            headerRow.createCell(1).setCellValue("列2");
+            headerRow.createCell(2).setCellValue("列3");
+            
+            // 创建测试数据
+            for (int i = 1; i <= 5; i++) {
+                org.apache.poi.ss.usermodel.Row row = sheet.createRow(i);
+                row.createCell(0).setCellValue("数据" + i);
+                row.createCell(1).setCellValue(i * 10);
+                row.createCell(2).setCellValue("测试内容" + i);
+            }
+            
+            // 自动调整列宽
+            for (int i = 0; i < 3; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            
+            // 转换为字节数组
+            try (java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                workbook.write(out);
+                out.flush();
+                return out.toByteArray();
+            }
+        }
+    }
+
+    /**
      * 创建Excel下载响应
      */
-    private ResponseEntity<byte[]> createExcelResponse(byte[] excelData, String fileName) {
+    private ResponseEntity<byte[]> createExcelResponse(byte[] excelData, String fileName) throws UnsupportedEncodingException {
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        headers.setContentDispositionFormData("attachment", fileName);
+        
+        // 设置正确的Excel文件MIME类型
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        
+        // 设置文件名，兼容不同浏览器
+        String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8.toString()).replaceAll("\\+", "%20");
+        
+        // 设置多种Content-Disposition格式以兼容不同浏览器
+        headers.set("Content-Disposition", "attachment; filename=\"" + fileName + "\"; filename*=UTF-8''" + encodedFileName);
+        
+        // 设置内容长度
         headers.setContentLength(excelData.length);
+        
+        // 添加CORS和缓存控制头
+        headers.set("Access-Control-Allow-Origin", "*");
+        headers.set("Access-Control-Expose-Headers", "Content-Disposition");
+        headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+        headers.set("Pragma", "no-cache");
+        headers.set("Expires", "0");
         
         return ResponseEntity.ok()
                 .headers(headers)

@@ -7,6 +7,10 @@ import com.example.opsworkordersystem.entity.WorkflowStep;
 import com.example.opsworkordersystem.repository.UserRepository;
 import com.example.opsworkordersystem.repository.WorkOrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +34,7 @@ public class WorkOrderService {
 
     // 创建工单
     @Transactional
+    @CacheEvict(value = {"workOrders", "statistics"}, allEntries = true)
     public WorkOrder createWorkOrder(WorkOrder workOrder) {
         // 设置创建时间和更新时间
         if (workOrder.getCreatedAt() == null) {
@@ -96,6 +101,7 @@ public class WorkOrderService {
     }
 
     // 根据状态查询工单
+    @Cacheable(value = "workOrders", key = "'status_' + #status")
     public List<WorkOrder> getWorkOrdersByStatus(Status status) {
         return workOrderRepository.findByStatusWithUsers(status);  // 使用预加载的方法
     }
@@ -106,6 +112,7 @@ public class WorkOrderService {
     }
     
     // 根据ID获取工单详情
+    @Cacheable(value = "workOrders", key = "'id_' + #id")
     public Optional<WorkOrder> getWorkOrderById(Integer id) {
         return workOrderRepository.findByIdWithUsers(id);
     }
@@ -116,6 +123,7 @@ public class WorkOrderService {
     }
     
     // 更新工单状态
+    @CacheEvict(value = {"workOrders", "statistics"}, allEntries = true)
     public WorkOrder updateWorkOrderStatus(Integer id, Status status) {
         Optional<WorkOrder> workOrderOpt = workOrderRepository.findByIdWithUsers(id);
         if (workOrderOpt.isPresent()) {
@@ -138,9 +146,13 @@ public class WorkOrderService {
         return Collections.emptyList();
     }
     
-    // 检查并更新超时工单状态
+    // 检查并更新超时工单状态 - 优化版本，使用分页避免内存溢出
+    @CacheEvict(value = {"workOrders", "statistics"}, allEntries = true)
     public List<WorkOrder> checkAndUpdateOverdueWorkOrders() {
-        List<WorkOrder> allActiveWorkOrders = workOrderRepository.findAll()
+        // 使用分页查询避免一次性加载所有数据
+        Pageable pageable = PageRequest.of(0, 1000);
+        List<WorkOrder> allActiveWorkOrders = workOrderRepository.findAll(pageable)
+            .getContent()
             .stream()
             .filter(wo -> wo.getStatus() != Status.COMPLETED && wo.getStatus() != Status.REJECTED)
             .toList();

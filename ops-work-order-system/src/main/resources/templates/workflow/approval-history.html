@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>审批历史 - 运维工单系统</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/navbar.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        .history-card { margin-bottom: 15px; }
+        .approved-record { border-left: 4px solid #198754; }
+        .rejected-record { border-left: 4px solid #dc3545; }
+        .pending-record { border-left: 4px solid #ffc107; }
+        .step-badge { font-size: 0.8em; margin: 2px; }
+        .status-approved { color: #198754; font-weight: bold; }
+        .status-rejected { color: #dc3545; font-weight: bold; }
+        .status-pending { color: #ffc107; font-weight: bold; }
+        .timeline-item {
+            position: relative;
+            padding-left: 30px;
+            margin-bottom: 20px;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 0;
+            bottom: -20px;
+            width: 2px;
+            background-color: #dee2e6;
+        }
+        .timeline-item:last-child::before {
+            display: none;
+        }
+        .timeline-icon {
+            position: absolute;
+            left: 0;
+            top: 5px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+        }
+        .timeline-icon.approved { background-color: #198754; }
+        .timeline-icon.rejected { background-color: #dc3545; }
+        .timeline-icon.pending { background-color: #ffc107; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">运维工单系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">控制面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-orders}">工单管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/work-order-types}">类型管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/departments}">部门管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/workflow}">工作流管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/statistics}">统计报表</a>
+                    </li>
+                    <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                        <a class="nav-link" th:href="@{/admin/users}">用户管理</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        欢迎，<span sec:authentication="name">用户</span>
+                    </span>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="btn btn-outline-light btn-sm">退出</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 页面标题 -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="@{/workflow}">工作流管理</a></li>
+                        <li class="breadcrumb-item active">审批历史</li>
+                    </ol>
+                </nav>
+                <h2>审批历史</h2>
+                <p class="text-muted">查看我的历史审批记录</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-success" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary" id="totalCount">0</h5>
+                        <p class="card-text">总计</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-success" id="approvedCount">0</h5>
+                        <p class="card-text">已通过</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-danger" id="rejectedCount">0</h5>
+                        <p class="card-text">已拒绝</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning" id="pendingCount">0</h5>
+                        <p class="card-text">处理中</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 筛选和搜索 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label for="statusFilter" class="form-label">状态筛选</label>
+                        <select id="statusFilter" class="form-select" onchange="filterRecords()">
+                            <option value="">全部</option>
+                            <option value="APPROVED">已通过</option>
+                            <option value="REJECTED">已拒绝</option>
+                            <option value="PENDING">处理中</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="stepTypeFilter" class="form-label">步骤类型</label>
+                        <select id="stepTypeFilter" class="form-select" onchange="filterRecords()">
+                            <option value="">全部</option>
+                            <option value="DEPARTMENT_REVIEW">部门初审</option>
+                            <option value="MANAGER_APPROVAL">经理审批</option>
+                            <option value="DIRECTOR_APPROVAL">主管审批</option>
+                            <option value="EXECUTION">执行操作</option>
+                            <option value="VERIFICATION">验证确认</option>
+                            <option value="COMPLETION">完成确认</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="dateRange" class="form-label">时间范围</label>
+                        <select id="dateRange" class="form-select" onchange="filterRecords()">
+                            <option value="">全部</option>
+                            <option value="today">今天</option>
+                            <option value="week">最近7天</option>
+                            <option value="month">最近30天</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="searchInput" class="form-label">搜索</label>
+                        <input type="text" id="searchInput" class="form-control" placeholder="工单标题或编号..." onkeyup="filterRecords()">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                            清除筛选
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 历史记录列表 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">审批历史记录</h5>
+            </div>
+            <div class="card-body">
+                <div id="recordsList">
+                    <!-- 记录列表将在这里动态加载 -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载历史记录...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 详情模态框 -->
+    <div class="modal fade" id="detailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">审批记录详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="recordDetails">
+                        <!-- 详情内容将在这里显示 -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        let currentUserId = null;
+        let allRecords = [];
+        let filteredRecords = [];
+        
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCurrentUser();
+            loadApprovalHistory();
+        });
+
+        // 获取当前用户信息
+        function loadCurrentUser() {
+            fetch('/workflow/api/current-user')
+                .then(response => response.json())
+                .then(user => {
+                    currentUserId = user.id;
+                })
+                .catch(error => {
+                    console.error('获取用户信息失败:', error);
+                    currentUserId = 1; // 默认值
+                });
+        }
+
+        // 加载审批历史
+        function loadApprovalHistory() {
+            fetch('/workflow/api/approval-history')
+                .then(response => response.json())
+                .then(data => {
+                    allRecords = data;
+                    filteredRecords = [...allRecords];
+                    updateStatistics();
+                    renderRecords();
+                })
+                .catch(error => {
+                    console.error('加载审批历史失败:', error);
+                    document.getElementById('recordsList').innerHTML = 
+                        '<div class="alert alert-danger">加载审批历史失败，请稍后重试</div>';
+                });
+        }
+
+        // 更新统计信息
+        function updateStatistics() {
+            const total = allRecords.length;
+            const approved = allRecords.filter(r => r.status === 'APPROVED').length;
+            const rejected = allRecords.filter(r => r.status === 'REJECTED').length;
+            const pending = allRecords.filter(r => r.status === 'PENDING').length;
+
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('approvedCount').textContent = approved;
+            document.getElementById('rejectedCount').textContent = rejected;
+            document.getElementById('pendingCount').textContent = pending;
+        }
+
+        // 渲染记录列表
+        function renderRecords() {
+            const container = document.getElementById('recordsList');
+            
+            if (filteredRecords.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">暂无审批记录</div>';
+                return;
+            }
+
+            const recordsHtml = filteredRecords.map(record => `
+                <div class="card history-card ${getRecordClass(record.status)}">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6 class="card-title">
+                                    <i class="bi bi-file-earmark-text"></i>
+                                    ${record.workOrderTitle}
+                                    <span class="badge bg-secondary ms-2">#${record.workOrderId}</span>
+                                </h6>
+                                <div class="timeline-item">
+                                    <div class="timeline-icon ${record.status.toLowerCase()}">
+                                        <i class="bi ${getStatusIcon(record.status)}"></i>
+                                    </div>
+                                    <div>
+                                        <strong>${getStepTypeName(record.stepType)}</strong>
+                                        <span class="badge ${getStatusBadgeClass(record.status)} ms-2">
+                                            ${getStatusName(record.status)}
+                                        </span>
+                                        <div class="text-muted small mt-1">
+                                            ${formatDateTime(record.processedAt || record.createdAt)}
+                                        </div>
+                                        ${record.comments ? `<div class="mt-2 text-muted">${record.comments}</div>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="mb-2">
+                                    <small class="text-muted">处理时间</small><br>
+                                    <span class="text-muted">${formatDateTime(record.processedAt)}</span>
+                                </div>
+                                <button class="btn btn-outline-primary btn-sm" onclick="showRecordDetails(${record.id})">
+                                    <i class="bi bi-eye"></i> 查看详情
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = recordsHtml;
+        }
+
+        // 筛选记录
+        function filterRecords() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const stepTypeFilter = document.getElementById('stepTypeFilter').value;
+            const dateRange = document.getElementById('dateRange').value;
+            const searchInput = document.getElementById('searchInput').value.toLowerCase();
+
+            filteredRecords = allRecords.filter(record => {
+                // 状态筛选
+                if (statusFilter && record.status !== statusFilter) return false;
+                
+                // 步骤类型筛选
+                if (stepTypeFilter && record.stepType !== stepTypeFilter) return false;
+                
+                // 时间范围筛选
+                if (dateRange) {
+                    const recordDate = new Date(record.createdAt);
+                    const now = new Date();
+                    let startDate;
+                    
+                    switch(dateRange) {
+                        case 'today':
+                            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                            break;
+                        case 'week':
+                            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                            break;
+                        case 'month':
+                            startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                            break;
+                    }
+                    
+                    if (recordDate < startDate) return false;
+                }
+                
+                // 搜索筛选
+                if (searchInput) {
+                    const title = record.workOrderTitle.toLowerCase();
+                    const id = record.workOrderId.toString();
+                    if (!title.includes(searchInput) && !id.includes(searchInput)) return false;
+                }
+                
+                return true;
+            });
+
+            renderRecords();
+        }
+
+        // 清除筛选
+        function clearFilters() {
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('stepTypeFilter').value = '';
+            document.getElementById('dateRange').value = '';
+            document.getElementById('searchInput').value = '';
+            filteredRecords = [...allRecords];
+            renderRecords();
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadApprovalHistory();
+        }
+
+        // 显示记录详情
+        function showRecordDetails(recordId) {
+            const record = allRecords.find(r => r.id === recordId);
+            if (!record) return;
+
+            document.getElementById('recordDetails').innerHTML = `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>工单编号:</strong> #${record.workOrderId}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>工单标题:</strong> ${record.workOrderTitle}
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>审批步骤:</strong> ${getStepTypeName(record.stepType)}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>处理状态:</strong> 
+                        <span class="badge ${getStatusBadgeClass(record.status)}">
+                            ${getStatusName(record.status)}
+                        </span>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>创建时间:</strong> ${formatDateTime(record.createdAt)}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>处理时间:</strong> ${formatDateTime(record.processedAt)}
+                    </div>
+                </div>
+                ${record.comments ? `
+                <div class="mb-3">
+                    <strong>处理意见:</strong>
+                    <div class="border rounded p-2 mt-1">${record.comments}</div>
+                </div>
+                ` : ''}
+            `;
+
+            new bootstrap.Modal(document.getElementById('detailModal')).show();
+        }
+
+        // 辅助函数
+        function getRecordClass(status) {
+            switch(status) {
+                case 'APPROVED': return 'approved-record';
+                case 'REJECTED': return 'rejected-record';
+                case 'PENDING': return 'pending-record';
+                default: return '';
+            }
+        }
+
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'APPROVED': return 'bi-check';
+                case 'REJECTED': return 'bi-x';
+                case 'PENDING': return 'bi-clock';
+                default: return 'bi-question';
+            }
+        }
+
+        function getStatusBadgeClass(status) {
+            switch(status) {
+                case 'APPROVED': return 'bg-success';
+                case 'REJECTED': return 'bg-danger';
+                case 'PENDING': return 'bg-warning';
+                default: return 'bg-secondary';
+            }
+        }
+
+        function getStatusName(status) {
+            switch(status) {
+                case 'APPROVED': return '已通过';
+                case 'REJECTED': return '已拒绝';
+                case 'PENDING': return '处理中';
+                default: return '未知';
+            }
+        }
+
+        function getStepTypeName(stepType) {
+            const typeNames = {
+                'DEPARTMENT_REVIEW': '部门初审',
+                'MANAGER_APPROVAL': '经理审批',
+                'DIRECTOR_APPROVAL': '主管审批',
+                'EXECUTION': '执行操作',
+                'VERIFICATION': '验证确认',
+                'COMPLETION': '完成确认'
+            };
+            return typeNames[stepType] || stepType;
+        }
+
+        function formatDateTime(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    </script>
+</body>
+</html> 

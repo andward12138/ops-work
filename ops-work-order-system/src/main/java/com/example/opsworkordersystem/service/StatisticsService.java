@@ -5,6 +5,7 @@ import com.example.opsworkordersystem.entity.*;
 import com.example.opsworkordersystem.repository.WorkOrderRepository;
 import com.example.opsworkordersystem.repository.DepartmentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ public class StatisticsService {
     /**
      * 获取每日工单统计
      */
+    @Cacheable(value = "statistics", key = "'daily_' + #startDate + '_' + #endDate")
     public List<DailyStatisticsDTO> getDailyStatistics(LocalDate startDate, LocalDate endDate) {
         List<DailyStatisticsDTO> dailyStats = new ArrayList<>();
         
@@ -55,6 +57,7 @@ public class StatisticsService {
     /**
      * 获取每周工单统计
      */
+    @Cacheable(value = "statistics", key = "'weekly_' + #startDate + '_' + #endDate")
     public List<WeeklyStatisticsDTO> getWeeklyStatistics(LocalDate startDate, LocalDate endDate) {
         List<WeeklyStatisticsDTO> weeklyStats = new ArrayList<>();
         
@@ -87,6 +90,7 @@ public class StatisticsService {
     /**
      * 获取超时预警列表
      */
+    @Cacheable(value = "statistics", key = "'overdue_warnings'")
     public List<OverdueWarningDTO> getOverdueWarnings() {
         List<WorkOrder> allWorkOrders = workOrderRepository.findAllWithUsers();
         
@@ -113,6 +117,7 @@ public class StatisticsService {
     /**
      * 获取部门效率分析
      */
+    @Cacheable(value = "statistics", key = "'dept_efficiency_' + #startDate + '_' + #endDate")
     public List<DepartmentEfficiencyDTO> getDepartmentEfficiency(LocalDate startDate, LocalDate endDate) {
         List<Department> departments = departmentRepository.findByIsActive(true);
         List<DepartmentEfficiencyDTO> efficiencyList = new ArrayList<>();
@@ -153,6 +158,7 @@ public class StatisticsService {
     /**
      * 获取首页统计摘要
      */
+    @Cacheable(value = "statistics", key = "'dashboard_summary'")
     public Map<String, Object> getDashboardSummary() {
         Map<String, Object> summary = new HashMap<>();
         

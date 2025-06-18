@@ -20,6 +20,10 @@ public class ExcelExportService {
      * 导出每日统计数据到Excel
      */
     public byte[] exportDailyStatistics(List<DailyStatisticsDTO> dailyStats) throws IOException {
+        if (dailyStats == null || dailyStats.isEmpty()) {
+            throw new IOException("每日统计数据为空，无法生成Excel文件");
+        }
+        
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("每日工单统计");
             
@@ -91,6 +95,10 @@ public class ExcelExportService {
      * 导出每周统计数据到Excel
      */
     public byte[] exportWeeklyStatistics(List<WeeklyStatisticsDTO> weeklyStats) throws IOException {
+        if (weeklyStats == null || weeklyStats.isEmpty()) {
+            throw new IOException("每周统计数据为空，无法生成Excel文件");
+        }
+        
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("每周工单统计");
             
@@ -377,7 +385,15 @@ public class ExcelExportService {
     private byte[] workbookToByteArray(Workbook workbook) throws IOException {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             workbook.write(out);
-            return out.toByteArray();
+            out.flush();
+            byte[] bytes = out.toByteArray();
+            
+            // 验证字节数组不为空
+            if (bytes == null || bytes.length == 0) {
+                throw new IOException("生成的Excel文件为空");
+            }
+            
+            return bytes;
         }
     }
 } 
