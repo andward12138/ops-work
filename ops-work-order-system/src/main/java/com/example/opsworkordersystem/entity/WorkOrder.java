@@ -26,11 +26,11 @@ public class WorkOrder {
     private Status status;  // 自定义 Status 枚举类
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by", nullable = true, columnDefinition = "INT")
+    @JoinColumn(name = "created_by", nullable = true, columnDefinition = "BIGINT")
     private User createdBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_to", nullable = true, columnDefinition = "INT")
+    @JoinColumn(name = "assigned_to", nullable = true, columnDefinition = "BIGINT")
     private User assignedTo;
 
     @Column(name = "department")

@@ -12,11 +12,11 @@ public class ApprovalRecord {
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "work_order_id", nullable = false, columnDefinition = "INT")
+    @JoinColumn(name = "work_order_id", nullable = false, columnDefinition = "BIGINT")
     private WorkOrder workOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "approver_id", nullable = true, columnDefinition = "INT")
+    @JoinColumn(name = "approver_id", nullable = true, columnDefinition = "BIGINT")
     private User approver;
 
     @Enumerated(EnumType.STRING)

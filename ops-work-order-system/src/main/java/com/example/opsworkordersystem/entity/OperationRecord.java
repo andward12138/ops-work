@@ -12,11 +12,11 @@ public class OperationRecord {
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)  // 多对一关系，一个操作记录对应一个工单
-    @JoinColumn(name = "work_order_id", nullable = false, columnDefinition = "INT")
+    @JoinColumn(name = "work_order_id", nullable = false, columnDefinition = "BIGINT")
     private WorkOrder workOrder;  // 操作对应的工单
 
     @ManyToOne(fetch = FetchType.LAZY)  // 多对一关系，一个操作记录对应一个操作人
-    @JoinColumn(name = "operator_id", nullable = true, columnDefinition = "INT")
+    @JoinColumn(name = "operator_id", nullable = true, columnDefinition = "BIGINT")
     private User operator;  // 操作人
 
     @Enumerated(EnumType.STRING)  // 操作类型，使用枚举

@@ -10,5 +10,5 @@ public interface WorkOrderController {
 
     List<WorkOrder> getWorkOrdersByStatus(String status);
 
-    List<WorkOrder> getWorkOrdersByCreator(Long createdById);
+    List<WorkOrder> getWorkOrdersByCreator(Integer createdById);
 }

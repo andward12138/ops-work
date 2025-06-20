@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf != null} ? ${_csrf.token} : ''"/>
+    <meta name="_csrf_header" th:content="${_csrf != null} ? ${_csrf.headerName} : ''"/>
+    <title>工单调试工具</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/css/bootstrap.min.css}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .debug-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: #000;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .response-display {
+            background-color: #f1f3f4;
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+            padding: 15px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .test-button {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">工单调试工具</a>
+            <a class="btn btn-outline-light" th:href="@{/work-orders}">返回工单列表</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2 class="mb-4">
+            <i class="bi bi-bug-fill text-danger"></i>
+            工单系统调试工具
+        </h2>
+
+        <!-- 系统信息卡片 -->
+        <div class="stat-card">
+            <h4><i class="bi bi-info-circle"></i> 系统状态</h4>
+            <div class="row">
+                <div class="col-md-3">
+                    <div>数据库状态: <span id="db-status" class="badge bg-success">正常</span></div>
+                </div>
+                <div class="col-md-3">
+                    <div>当前用户: <span id="current-user" class="badge bg-info">检查中...</span></div>
+                </div>
+                <div class="col-md-3">
+                    <div>工单总数: <span id="total-workorders" class="badge bg-warning">检查中...</span></div>
+                </div>
+                <div class="col-md-3">
+                    <div>用户总数: <span id="total-users" class="badge bg-success">检查中...</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 测试创建工单 -->
+        <div class="debug-section">
+            <h4><i class="bi bi-plus-circle-fill text-success"></i> 测试创建工单</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>快速测试</h5>
+                    <button class="btn btn-primary test-button" onclick="testCreateSimpleWorkOrder()">
+                        <i class="bi bi-rocket-fill"></i> 创建简单工单
+                    </button>
+                    <button class="btn btn-warning test-button" onclick="testCreateEmergencyWorkOrder()">
+                        <i class="bi bi-exclamation-triangle-fill"></i> 创建应急工单
+                    </button>
+                    <button class="btn btn-info test-button" onclick="testCreateIncidentWorkOrder()">
+                        <i class="bi bi-bug-fill"></i> 创建故障工单
+                    </button>
+                    <button class="btn btn-secondary test-button" onclick="testCreateMaintenanceWorkOrder()">
+                        <i class="bi bi-tools"></i> 创建维护工单
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <h5>自定义工单测试</h5>
+                    <form id="custom-workorder-form">
+                        <div class="mb-2">
+                            <input type="text" class="form-control form-control-sm" id="custom-title" placeholder="工单标题" value="测试工单">
+                        </div>
+                        <div class="mb-2">
+                            <textarea class="form-control form-control-sm" id="custom-description" rows="2" placeholder="工单描述">这是一个测试工单描述</textarea>
+                        </div>
+                        <div class="mb-2">
+                            <select class="form-select form-select-sm" id="custom-type">
+                                <option value="REQUEST">需求工单</option>
+                                <option value="INCIDENT">故障工单</option>
+                                <option value="MAINTENANCE">维护工单</option>
+                                <option value="EMERGENCY">应急工单</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-success btn-sm" onclick="testCreateCustomWorkOrder()">
+                            创建自定义工单
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 测试更新工单状态 -->
+        <div class="debug-section">
+            <h4><i class="bi bi-arrow-repeat text-primary"></i> 测试更新工单状态</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">选择工单ID:</label>
+                        <select class="form-select" id="workorder-select">
+                            <option value="">加载中...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">新状态:</label>
+                        <select class="form-select" id="new-status">
+                            <option value="PENDING">待处理</option>
+                            <option value="APPROVED">已批准</option>
+                            <option value="IN_PROGRESS">处理中</option>
+                            <option value="COMPLETED">已完成</option>
+                            <option value="REJECTED">已拒绝</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary test-button" onclick="testUpdateWorkOrderStatus()">
+                <i class="bi bi-arrow-up-circle-fill"></i> 更新工单状态
+            </button>
+        </div>
+
+        <!-- API测试 -->
+        <div class="debug-section">
+            <h4><i class="bi bi-cloud-arrow-up-fill text-info"></i> API连接测试</h4>
+            <button class="btn btn-outline-primary test-button" onclick="testGetAllWorkOrders()">
+                获取所有工单
+            </button>
+            <button class="btn btn-outline-secondary test-button" onclick="testGetCurrentUser()">
+                获取当前用户
+            </button>
+            <button class="btn btn-outline-info test-button" onclick="testGetAllUsers()">
+                获取所有用户
+            </button>
+            <button class="btn btn-outline-success test-button" onclick="testDatabaseConnection()">
+                测试数据库连接
+            </button>
+        </div>
+
+        <!-- 日志显示 -->
+        <div class="debug-section">
+            <h4><i class="bi bi-terminal-fill text-warning"></i> 调试日志</h4>
+            <button class="btn btn-outline-danger btn-sm mb-3" onclick="clearLog()">清除日志</button>
+            <div id="debug-log" class="log-container">
+                <div>[系统] 工单调试工具已就绪...</div>
+            </div>
+        </div>
+
+        <!-- 响应数据显示 -->
+        <div class="debug-section">
+            <h4><i class="bi bi-file-earmark-code-fill text-success"></i> 最新响应数据</h4>
+            <div id="response-data" class="response-display">
+                等待API响应...
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script>
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            log('[系统] 开始初始化调试工具...');
+            loadSystemInfo();
+            loadWorkOrders();
+        });
+
+        // 日志函数
+        function log(message) {
+            const logContainer = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleString();
+            logContainer.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('debug-log').innerHTML = '<div>[系统] 日志已清除</div>';
+        }
+
+        // 显示响应数据
+        function showResponse(data) {
+            document.getElementById('response-data').textContent = JSON.stringify(data, null, 2);
+        }
+
+        // 获取CSRF令牌
+        function getCSRFToken() {
+            return document.querySelector('meta[name="_csrf"]')?.content || '';
+        }
+
+        // 通用AJAX请求函数
+        function makeRequest(url, options = {}) {
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCSRFToken()
+                }
+            };
+
+            return fetch(url, { ...defaultOptions, ...options })
+                .then(response => {
+                    log(`[API] ${options.method || 'GET'} ${url} - Status: ${response.status}`);
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            try {
+                                const data = JSON.parse(text);
+                                throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+                            } catch (e) {
+                                throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+                            }
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    showResponse(data);
+                    return data;
+                })
+                .catch(error => {
+                    log(`[错误] ${error.message}`);
+                    showResponse({ error: error.message });
+                    throw error;
+                });
+        }
+
+        // 系统信息加载
+        function loadSystemInfo() {
+            // 获取当前用户
+            makeRequest('/api/current-user')
+                .then(data => {
+                    document.getElementById('current-user').textContent = data.username || '未登录';
+                })
+                .catch(() => {
+                    document.getElementById('current-user').textContent = '获取失败';
+                });
+
+            // 获取工单总数
+            makeRequest('/work-orders/api/debug/stats')
+                .then(data => {
+                    document.getElementById('total-workorders').textContent = data.totalWorkOrders || '0';
+                })
+                .catch(() => {
+                    document.getElementById('total-workorders').textContent = '获取失败';
+                });
+
+            // 获取用户总数
+            makeRequest('/users/api/count')
+                .then(data => {
+                    document.getElementById('total-users').textContent = data.count || '0';
+                })
+                .catch(() => {
+                    document.getElementById('total-users').textContent = '获取失败';
+                });
+        }
+
+        // 加载工单列表
+        function loadWorkOrders() {
+            makeRequest('/work-orders/api/debug/all')
+                .then(data => {
+                    const select = document.getElementById('workorder-select');
+                    select.innerHTML = '<option value="">请选择工单</option>';
+                    data.forEach(wo => {
+                        const option = document.createElement('option');
+                        option.value = wo.id;
+                        option.textContent = `#${wo.id} - ${wo.title} (${wo.status})`;
+                        select.appendChild(option);
+                    });
+                    log(`[系统] 已加载 ${data.length} 个工单`);
+                })
+                .catch(error => {
+                    log(`[错误] 加载工单失败: ${error.message}`);
+                });
+        }
+
+        // 测试创建简单工单
+        function testCreateSimpleWorkOrder() {
+            const workOrder = {
+                title: '测试工单 - ' + new Date().toLocaleString(),
+                description: '这是一个简单的测试工单，用于验证工单创建功能',
+                workOrderType: 'REQUEST',
+                priority: 'MEDIUM',
+                department: '测试部门',
+                status: 'PENDING'
+            };
+
+            log('[测试] 开始创建简单工单...');
+            makeRequest('/work-orders/api', {
+                method: 'POST',
+                body: JSON.stringify(workOrder)
+            })
+            .then(data => {
+                log(`[成功] 工单创建成功! ID: ${data.id}`);
+                loadWorkOrders(); // 重新加载工单列表
+            })
+            .catch(error => {
+                log(`[失败] 工单创建失败: ${error.message}`);
+            });
+        }
+
+        // 测试创建应急工单
+        function testCreateEmergencyWorkOrder() {
+            const workOrder = {
+                title: '应急工单 - 系统故障',
+                description: '服务器出现严重故障，需要立即处理',
+                workOrderType: 'EMERGENCY',
+                priority: 'URGENT',
+                department: '运维部',
+                status: 'APPROVED'
+            };
+
+            log('[测试] 开始创建应急工单...');
+            makeRequest('/work-orders/api', {
+                method: 'POST',
+                body: JSON.stringify(workOrder)
+            })
+            .then(data => {
+                log(`[成功] 应急工单创建成功! ID: ${data.id}`);
+                loadWorkOrders();
+            })
+            .catch(error => {
+                log(`[失败] 应急工单创建失败: ${error.message}`);
+            });
+        }
+
+        // 测试创建故障工单
+        function testCreateIncidentWorkOrder() {
+            const workOrder = {
+                title: '故障工单 - 网络中断',
+                description: '部分网络设备出现连接问题',
+                workOrderType: 'INCIDENT',
+                priority: 'HIGH',
+                department: '网络部',
+                status: 'PENDING'
+            };
+
+            log('[测试] 开始创建故障工单...');
+            makeRequest('/work-orders/api', {
+                method: 'POST',
+                body: JSON.stringify(workOrder)
+            })
+            .then(data => {
+                log(`[成功] 故障工单创建成功! ID: ${data.id}`);
+                loadWorkOrders();
+            })
+            .catch(error => {
+                log(`[失败] 故障工单创建失败: ${error.message}`);
+            });
+        }
+
+        // 测试创建维护工单
+        function testCreateMaintenanceWorkOrder() {
+            const workOrder = {
+                title: '维护工单 - 系统更新',
+                description: '定期系统维护和更新',
+                workOrderType: 'MAINTENANCE',
+                priority: 'MEDIUM',
+                department: '技术部',
+                status: 'PENDING'
+            };
+
+            log('[测试] 开始创建维护工单...');
+            makeRequest('/work-orders/api', {
+                method: 'POST',
+                body: JSON.stringify(workOrder)
+            })
+            .then(data => {
+                log(`[成功] 维护工单创建成功! ID: ${data.id}`);
+                loadWorkOrders();
+            })
+            .catch(error => {
+                log(`[失败] 维护工单创建失败: ${error.message}`);
+            });
+        }
+
+        // 测试创建自定义工单
+        function testCreateCustomWorkOrder() {
+            const title = document.getElementById('custom-title').value;
+            const description = document.getElementById('custom-description').value;
+            const type = document.getElementById('custom-type').value;
+
+            if (!title || !description) {
+                alert('请填写标题和描述');
+                return;
+            }
+
+            const workOrder = {
+                title: title,
+                description: description,
+                workOrderType: type,
+                priority: type === 'EMERGENCY' ? 'URGENT' : (type === 'INCIDENT' ? 'HIGH' : 'MEDIUM'),
+                department: '测试部门',
+                status: type === 'EMERGENCY' ? 'APPROVED' : 'PENDING'
+            };
+
+            log('[测试] 开始创建自定义工单...');
+            makeRequest('/work-orders/api', {
+                method: 'POST',
+                body: JSON.stringify(workOrder)
+            })
+            .then(data => {
+                log(`[成功] 自定义工单创建成功! ID: ${data.id}`);
+                loadWorkOrders();
+            })
+            .catch(error => {
+                log(`[失败] 自定义工单创建失败: ${error.message}`);
+            });
+        }
+
+        // 测试更新工单状态
+        function testUpdateWorkOrderStatus() {
+            const workOrderId = document.getElementById('workorder-select').value;
+            const newStatus = document.getElementById('new-status').value;
+
+            if (!workOrderId) {
+                alert('请选择一个工单');
+                return;
+            }
+
+            log(`[测试] 开始更新工单 #${workOrderId} 状态为 ${newStatus}...`);
+            makeRequest(`/work-orders/api/${workOrderId}/status`, {
+                method: 'PUT',
+                body: JSON.stringify({ status: newStatus })
+            })
+            .then(data => {
+                log(`[成功] 工单状态更新成功! 新状态: ${data.status}`);
+                loadWorkOrders(); // 重新加载工单列表
+            })
+            .catch(error => {
+                log(`[失败] 工单状态更新失败: ${error.message}`);
+            });
+        }
+
+        // API测试函数
+        function testGetAllWorkOrders() {
+            log('[测试] 获取所有工单...');
+            makeRequest('/work-orders/api/debug/all')
+                .then(data => {
+                    log(`[成功] 获取到 ${data.length} 个工单`);
+                })
+                .catch(error => {
+                    log(`[失败] 获取工单失败: ${error.message}`);
+                });
+        }
+
+        function testGetCurrentUser() {
+            log('[测试] 获取当前用户信息...');
+            makeRequest('/api/current-user')
+                .then(data => {
+                    log(`[成功] 当前用户: ${data.username}`);
+                })
+                .catch(error => {
+                    log(`[失败] 获取用户失败: ${error.message}`);
+                });
+        }
+
+        function testGetAllUsers() {
+            log('[测试] 获取所有用户...');
+            makeRequest('/users/api/all')
+                .then(data => {
+                    log(`[成功] 获取到 ${data.length} 个用户`);
+                })
+                .catch(error => {
+                    log(`[失败] 获取用户失败: ${error.message}`);
+                });
+        }
+
+        function testDatabaseConnection() {
+            log('[测试] 测试数据库连接...');
+            makeRequest('/work-orders/api/debug/stats')
+                .then(data => {
+                    log(`[成功] 数据库连接正常，统计数据已获取`);
+                    document.getElementById('db-status').textContent = '正常';
+                    document.getElementById('db-status').className = 'badge bg-success';
+                })
+                .catch(error => {
+                    log(`[失败] 数据库连接异常: ${error.message}`);
+                    document.getElementById('db-status').textContent = '异常';
+                    document.getElementById('db-status').className = 'badge bg-danger';
+                });
+        }
+    </script>
+</body>
+</html> 

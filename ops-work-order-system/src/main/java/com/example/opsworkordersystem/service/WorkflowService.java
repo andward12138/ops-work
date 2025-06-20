@@ -34,9 +34,16 @@ public class WorkflowService {
      */
     public List<WorkflowStep> initializeWorkflow(WorkOrder workOrder, String workOrderType) {
         // 查找适用的工作流模板
-        WorkflowTemplate template = templateRepository
-            .findByWorkOrderTypeAndIsActive(workOrderType, true)
-            .orElseThrow(() -> new RuntimeException("未找到适用的工作流模板"));
+        Optional<WorkflowTemplate> templateOpt = templateRepository
+            .findByWorkOrderTypeAndIsActive(workOrderType, true);
+        
+        if (!templateOpt.isPresent()) {
+            // 如果没有找到适配的工作流模板，返回空列表而不是抛出异常
+            System.out.println("警告: 未找到工单类型 '" + workOrderType + "' 的工作流模板，跳过工作流初始化");
+            return new ArrayList<>();
+        }
+        
+        WorkflowTemplate template = templateOpt.get();
         
         // 获取模板步骤
         template = templateRepository.findByIdWithSteps(template.getId())
@@ -121,16 +128,21 @@ public class WorkflowService {
     private void assignStepHandler(WorkflowStep step) {
         // 根据角色和部门分配处理人
         if (step.getAssigneeRole() != null && step.getAssigneeDepartment() != null) {
-            // 查找部门内具有指定角色的用户
-            List<User> users = userRepository.findByRoleAndDepartmentId(
-                step.getAssigneeRole(), 
-                step.getAssigneeDepartment().getId()
-            );
-            
-            if (!users.isEmpty()) {
-                // 简单的负载均衡：选择待处理任务最少的用户
-                User assignee = selectLeastBusyUser(users);
-                step.setAssignee(assignee);
+            try {
+                // 查找部门内具有指定角色的用户
+                List<User> users = userRepository.findByRoleAndDepartmentId(
+                    step.getAssigneeRole(), 
+                    step.getAssigneeDepartment().getId()
+                );
+                
+                if (!users.isEmpty()) {
+                    // 简单的负载均衡：选择待处理任务最少的用户
+                    User assignee = selectLeastBusyUser(users);
+                    step.setAssignee(assignee);
+                }
+            } catch (Exception e) {
+                System.err.println("分配步骤处理人失败: " + e.getMessage());
+                // 不抛出异常，允许工作流继续
             }
         }
     }
@@ -156,8 +168,13 @@ public class WorkflowService {
      * 处理步骤完成
      */
     public void completeStep(Integer stepId, String comments, ApprovalStatus approvalStatus) {
-        WorkflowStep step = stepRepository.findById(stepId)
-            .orElseThrow(() -> new RuntimeException("步骤不存在"));
+        Optional<WorkflowStep> stepOpt = stepRepository.findById(stepId);
+        if (!stepOpt.isPresent()) {
+            System.err.println("错误: 步骤不存在，ID: " + stepId);
+            return;
+        }
+        
+        WorkflowStep step = stepOpt.get();
         
         // 更新步骤状态
         if (approvalStatus == ApprovalStatus.APPROVED) {
