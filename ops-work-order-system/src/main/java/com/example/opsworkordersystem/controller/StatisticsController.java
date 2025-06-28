@@ -127,7 +127,17 @@ public class StatisticsController {
         
         List<DepartmentEfficiencyDTO> efficiencyStats = statisticsService.getDepartmentEfficiency(startDate, endDate);
         
+        // 计算各效率等级的部门数量
+        long excellentCount = efficiencyStats.stream().filter(d -> d.getEfficiency() >= 90).count();
+        long goodCount = efficiencyStats.stream().filter(d -> d.getEfficiency() >= 80 && d.getEfficiency() < 90).count();
+        long averageCount = efficiencyStats.stream().filter(d -> d.getEfficiency() >= 70 && d.getEfficiency() < 80).count();
+        long poorCount = efficiencyStats.stream().filter(d -> d.getEfficiency() < 70).count();
+        
         model.addAttribute("efficiencyStats", efficiencyStats);
+        model.addAttribute("excellentCount", excellentCount);
+        model.addAttribute("goodCount", goodCount);
+        model.addAttribute("averageCount", averageCount);
+        model.addAttribute("poorCount", poorCount);
         model.addAttribute("startDate", startDate);
         model.addAttribute("endDate", endDate);
         

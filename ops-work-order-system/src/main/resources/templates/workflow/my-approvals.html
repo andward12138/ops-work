@@ -71,8 +71,8 @@
                         <li class="breadcrumb-item active">我的审批任务</li>
                     </ol>
                 </nav>
-                <h2>我的审批任务</h2>
-                <p class="text-muted">处理分配给我的工作流审批任务</p>
+                <h2 id="pageTitle">我的审批任务</h2>
+                <p class="text-muted" id="pageDescription">处理分配给我的工作流审批任务</p>
             </div>
             <div class="col-md-4 text-end">
                 <button class="btn btn-success" onclick="refreshData()">
@@ -192,13 +192,104 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadCurrentUser();
             loadTasks();
+            // 根据URL参数自动设置筛选条件
+            applyUrlFilters();
         });
 
         // 获取当前用户信息
         function loadCurrentUser() {
-            // 暂时使用模拟数据
-            currentUserId = 1;
+            fetch('/workflow/api/current-user')
+                .then(response => response.json())
+                .then(user => {
+                    currentUserId = user.id;
+                })
+                .catch(error => {
+                    console.error('获取用户信息失败:', error);
+                    currentUserId = 1; // 默认值
+                });
         }
+
+        // 根据URL参数自动设置筛选条件
+        function applyUrlFilters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const filter = urlParams.get('filter');
+            const stepType = urlParams.get('stepType');
+            const search = urlParams.get('search');
+
+            // 设置状态筛选
+            if (filter) {
+                const statusSelect = document.getElementById('statusFilter');
+                if (filter === 'pending') {
+                    statusSelect.value = 'PENDING';
+                } else if (filter === 'overdue') {
+                    statusSelect.value = 'overdue';
+                } else {
+                    statusSelect.value = filter;
+                }
+            }
+
+            // 设置步骤类型筛选
+            if (stepType) {
+                const stepTypeSelect = document.getElementById('stepTypeFilter');
+                stepTypeSelect.value = stepType;
+            }
+
+            // 设置搜索关键词
+            if (search) {
+                const searchInput = document.getElementById('searchInput');
+                searchInput.value = search;
+            }
+
+                         // 更新页面标题和描述
+             updatePageTitle(filter, stepType, search);
+
+             // 延迟执行筛选，确保数据已加载
+             setTimeout(() => {
+                 if (filter || stepType || search) {
+                     filterTasks();
+                 }
+             }, 1000);
+         }
+
+         // 根据筛选条件更新页面标题
+         function updatePageTitle(filter, stepType, search) {
+             const titleElement = document.getElementById('pageTitle');
+             const descElement = document.getElementById('pageDescription');
+             
+             let title = '我的审批任务';
+             let description = '处理分配给我的工作流审批任务';
+
+             if (filter === 'pending') {
+                 title = '我的待处理审批任务';
+                 description = '查看所有等待我处理的审批任务';
+             } else if (filter === 'overdue') {
+                 title = '我的超时任务';
+                 description = '查看所有已超期的审批任务，请尽快处理';
+                 descElement.classList.add('text-danger');
+             }
+
+             if (stepType) {
+                 const typeNames = {
+                     'DEPARTMENT_REVIEW': '部门初审',
+                     'MANAGER_APPROVAL': '经理审批',
+                     'DIRECTOR_APPROVAL': '主管审批',
+                     'EXECUTION': '执行操作',
+                     'VERIFICATION': '验证确认',
+                     'COMPLETION': '完成确认'
+                 };
+                 const typeName = typeNames[stepType] || stepType;
+                 title += ` - ${typeName}`;
+                 description = `查看所有需要进行${typeName}的任务`;
+             }
+
+             if (search) {
+                 title += ` - 搜索结果`;
+                 description = `搜索关键词："${search}"的结果`;
+             }
+
+             titleElement.textContent = title;
+             descElement.textContent = description;
+         }
 
         // 加载任务
         function loadTasks() {
@@ -319,6 +410,9 @@
             const stepTypeFilter = document.getElementById('stepTypeFilter').value;
             const searchInput = document.getElementById('searchInput').value.toLowerCase();
 
+            // 更新URL参数，保持状态同步
+            updateUrlParams(statusFilter, stepTypeFilter, searchInput);
+
             filteredTasks = allTasks.filter(task => {
                 // 状态筛选
                 if (statusFilter === 'overdue') {
@@ -345,11 +439,56 @@
             renderTasks(filteredTasks);
         }
 
+        // 更新URL参数
+        function updateUrlParams(statusFilter, stepTypeFilter, searchInput) {
+            const url = new URL(window.location);
+            
+            // 清除所有相关参数
+            url.searchParams.delete('filter');
+            url.searchParams.delete('stepType');
+            url.searchParams.delete('search');
+            
+            // 添加新的参数
+            if (statusFilter) {
+                if (statusFilter === 'PENDING') {
+                    url.searchParams.set('filter', 'pending');
+                } else if (statusFilter === 'overdue') {
+                    url.searchParams.set('filter', 'overdue');
+                } else {
+                    url.searchParams.set('filter', statusFilter);
+                }
+            }
+            
+            if (stepTypeFilter) {
+                url.searchParams.set('stepType', stepTypeFilter);
+            }
+            
+            if (searchInput) {
+                url.searchParams.set('search', searchInput);
+            }
+            
+            // 更新浏览器地址栏，但不刷新页面
+            window.history.replaceState({}, '', url);
+        }
+
         // 清除筛选
         function clearFilters() {
             document.getElementById('statusFilter').value = '';
             document.getElementById('stepTypeFilter').value = '';
             document.getElementById('searchInput').value = '';
+            
+            // 清除URL参数
+            const url = new URL(window.location);
+            url.searchParams.delete('filter');
+            url.searchParams.delete('stepType');
+            url.searchParams.delete('search');
+            window.history.replaceState({}, '', url);
+            
+            // 恢复默认标题
+            document.getElementById('pageTitle').textContent = '我的审批任务';
+            document.getElementById('pageDescription').textContent = '处理分配给我的工作流审批任务';
+            document.getElementById('pageDescription').classList.remove('text-danger');
+            
             filteredTasks = [...allTasks];
             renderTasks(filteredTasks);
         }

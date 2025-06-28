@@ -1,5 +1,6 @@
 package com.example.opsworkordersystem.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 
 @Entity
@@ -12,6 +13,7 @@ public class WorkflowTemplateStep {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id", nullable = false)
+    @JsonBackReference
     private WorkflowTemplate template;
 
     @Column(name = "step_order", nullable = false)

@@ -110,7 +110,7 @@
                 <div class="card text-white bg-success">
                     <div class="card-body">
                         <h6 class="card-title">优秀部门</h6>
-                        <h3 th:text="${#lists.size(#lists.select(efficiencyStats, 'efficiency >= 90'))}">0</h3>
+                        <h3 th:text="${excellentCount}">0</h3>
                         <small>效率 ≥ 90%</small>
                     </div>
                 </div>
@@ -119,7 +119,7 @@
                 <div class="card text-white bg-primary">
                     <div class="card-body">
                         <h6 class="card-title">良好部门</h6>
-                        <h3 th:text="${#lists.size(#lists.select(efficiencyStats, 'efficiency >= 80 and efficiency < 90'))}">0</h3>
+                        <h3 th:text="${goodCount}">0</h3>
                         <small>80% ≤ 效率 < 90%</small>
                     </div>
                 </div>
@@ -128,7 +128,7 @@
                 <div class="card text-white bg-warning">
                     <div class="card-body">
                         <h6 class="card-title">一般部门</h6>
-                        <h3 th:text="${#lists.size(#lists.select(efficiencyStats, 'efficiency >= 70 and efficiency < 80'))}">0</h3>
+                        <h3 th:text="${averageCount}">0</h3>
                         <small>70% ≤ 效率 < 80%</small>
                     </div>
                 </div>
@@ -137,7 +137,7 @@
                 <div class="card text-white bg-danger">
                     <div class="card-body">
                         <h6 class="card-title">待改进部门</h6>
-                        <h3 th:text="${#lists.size(#lists.select(efficiencyStats, 'efficiency < 70'))}">0</h3>
+                        <h3 th:text="${poorCount}">0</h3>
                         <small>效率 < 70%</small>
                     </div>
                 </div>
@@ -201,7 +201,7 @@
                                         </h6>
                                         <p class="text-muted mb-0 small">
                                             工单总数: <span th:text="${dept.totalWorkOrders}">0</span> | 
-                                            已完成: <span th:text="${dept.completedCount}">0</span>
+                                            已完成: <span th:text="${dept.completedWorkOrders}">0</span>
                                         </p>
                                     </div>
                                     <div class="text-end">
@@ -234,18 +234,18 @@
                                             <span class="fw-bold" th:text="${#numbers.formatDecimal(dept.completionRate, 1, 1)} + '%'">0.0%</span>
                                         </div>
                                         <div class="d-flex justify-content-between">
-                                            <span>及时率:</span>
-                                            <span class="fw-bold" th:text="${#numbers.formatDecimal(dept.onTimeRate, 1, 1)} + '%'">0.0%</span>
+                                            <span>超时工单:</span>
+                                            <span class="fw-bold" th:text="${dept.overdueWorkOrders}">0</span>
                                         </div>
                                     </div>
                                     <div class="col-6">
                                         <div class="d-flex justify-content-between">
                                             <span>平均时长:</span>
-                                            <span class="fw-bold" th:text="${dept.averageProcessingHours != null ? #numbers.formatDecimal(dept.averageProcessingHours, 1, 1) + 'h' : '-'}">-</span>
+                                            <span class="fw-bold" th:text="${dept.averageResolutionTime > 0 ? #numbers.formatDecimal(dept.averageResolutionTime, 1, 1) + 'h' : '-'}">-</span>
                                         </div>
                                         <div class="d-flex justify-content-between">
-                                            <span>质量评分:</span>
-                                            <span class="fw-bold" th:text="${#numbers.formatDecimal(dept.qualityScore, 1, 1)}">0.0</span>
+                                            <span>效率等级:</span>
+                                            <span class="fw-bold" th:text="${dept.efficiencyLevel}">一般</span>
                                         </div>
                                     </div>
                                 </div>
@@ -317,7 +317,6 @@
                 const departmentNames = efficiencyStats.map(dept => dept.departmentName);
                 const efficiencyData = efficiencyStats.map(dept => dept.efficiency);
                 const completionRateData = efficiencyStats.map(dept => dept.completionRate);
-                const onTimeRateData = efficiencyStats.map(dept => dept.onTimeRate);
                 
                 new Chart(ctx1, {
                     type: 'bar',

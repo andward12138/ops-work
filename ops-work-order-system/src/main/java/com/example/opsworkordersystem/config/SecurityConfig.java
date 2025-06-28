@@ -34,6 +34,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/users/reset-password-request", "/api/users/reset-password").permitAll()
                 .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
                 .requestMatchers("/api/users/**").hasRole(Role.ADMIN.name())
+                // 工作流模板管理权限 - 管理员和经理可以管理
+                .requestMatchers("/api/workflow-templates/**").hasAnyRole(Role.ADMIN.name(), Role.MANAGER.name())
+                // 工作流相关的只读API - 所有认证用户可访问
+                .requestMatchers("/workflow/**", "/api/workflow-steps/**").authenticated()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form

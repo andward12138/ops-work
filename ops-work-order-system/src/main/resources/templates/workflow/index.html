@@ -72,14 +72,14 @@
             </div>
         </div>
 
-        <!-- 统计卡片 -->
+                <!-- 统计卡片 -->
         <div class="row mb-4">
             <div class="col-md-3 mb-3">
                 <div class="card text-white bg-warning">
                     <div class="card-body">
                         <h6 class="card-title">待处理审批</h6>
                         <p class="card-text display-6" id="pendingApprovals">0</p>
-                        <a href="/workflow/my-approvals" class="text-white">查看详情 &raquo;</a>
+                        <a href="/workflow/my-approvals?filter=pending" class="text-white">查看详情 &raquo;</a>
                     </div>
                 </div>
             </div>
@@ -104,9 +104,49 @@
             <div class="col-md-3 mb-3">
                 <div class="card text-white bg-info">
                     <div class="card-body">
-                        <h6 class="card-title">活跃工作流</h6>
+                        <h6 class="card-title">进行中工作流</h6>
                         <p class="card-text display-6" id="activeWorkflows">0</p>
-                        <a href="/workflow/templates" class="text-white">查看详情 &raquo;</a>
+                        <a href="/work-orders?status=IN_PROGRESS" class="text-white">查看详情 &raquo;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 工作流模板统计 -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">工作流模板统计</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-primary" id="totalTemplates">0</h4>
+                                    <p class="text-muted mb-0">总模板数</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-success" id="activeTemplates">0</h4>
+                                    <p class="text-muted mb-0">可用模板</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h4 class="text-warning" id="inactiveTemplates">0</h4>
+                                    <p class="text-muted mb-0">停用模板</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <h4 class="text-info" id="usedTemplates">0</h4>
+                                <p class="text-muted mb-0">使用中模板</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 text-center">
+                            <a href="/workflow/templates" class="btn btn-primary">管理工作流模板</a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -122,7 +162,7 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3 mb-3">
-                                <a href="/workflow/my-approvals" class="btn btn-outline-primary w-100">
+                                <a href="/workflow/my-approvals?filter=pending" class="btn btn-outline-primary w-100">
                                     <i class="bi bi-check-circle"></i><br>
                                     我的审批任务
                                 </a>
@@ -159,7 +199,7 @@
                         <h5 class="mb-0">我的待处理任务</h5>
                     </div>
                     <div class="col-auto">
-                        <a href="/workflow/my-approvals" class="btn btn-sm btn-primary">查看全部</a>
+                        <a href="/workflow/my-approvals?filter=pending" class="btn btn-sm btn-primary">查看全部</a>
                     </div>
                 </div>
             </div>
@@ -186,15 +226,24 @@
         // 页面加载完成后获取数据
         document.addEventListener('DOMContentLoaded', function() {
             loadCurrentUser();
-            loadStatistics();
-            loadPendingTasks();
+            // 延迟加载统计数据，确保获取用户信息后执行
+            setTimeout(() => {
+                loadStatistics();
+                loadPendingTasks();
+            }, 500);
         });
 
         // 获取当前用户信息
         function loadCurrentUser() {
-            // 这里需要一个API来获取当前用户信息
-            // 暂时使用模拟数据
-            currentUserId = 1; // 模拟用户ID
+            fetch('/workflow/api/current-user')
+                .then(response => response.json())
+                .then(user => {
+                    currentUserId = user.id;
+                })
+                .catch(error => {
+                    console.error('获取用户信息失败:', error);
+                    currentUserId = 1; // 默认值
+                });
         }
 
         // 加载统计信息
@@ -220,19 +269,39 @@
                     document.getElementById('overdueTasks').textContent = '错误';
                 });
 
-            // 获取工作流模板数量
-            fetch('/api/workflow-templates/active')
-                .then(response => response.json())
+            // 获取进行中的工作流数量（有工作流步骤且状态为进行中的工单）
+            fetch('/work-orders/api')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    document.getElementById('activeWorkflows').textContent = data.length;
+                    // 筛选出状态为进行中的工单
+                    const inProgressWorkflows = data.filter(workOrder => 
+                        workOrder.status === 'IN_PROGRESS' || workOrder.status === 'PENDING'
+                    );
+                    document.getElementById('activeWorkflows').textContent = inProgressWorkflows.length || 0;
                 })
                 .catch(error => {
-                    console.error('Error loading templates:', error);
-                    document.getElementById('activeWorkflows').textContent = '错误';
+                    console.error('Error loading active workflows:', error);
+                    document.getElementById('activeWorkflows').textContent = '0';
                 });
 
-            // 模拟已处理任务数量
-            document.getElementById('completedTasks').textContent = '15';
+            // 加载工作流模板统计
+            loadTemplateStatistics();
+
+            // 获取已处理任务数量
+            fetch('/workflow/api/approval-history')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('completedTasks').textContent = data.length;
+                })
+                .catch(error => {
+                    console.error('Error loading completed tasks:', error);
+                    document.getElementById('completedTasks').textContent = '错误';
+                });
         }
 
         // 加载待处理任务
@@ -311,6 +380,57 @@
                 'COMPLETION': '完成确认'
             };
             return types[type] || type;
+        }
+
+        // 加载工作流模板统计
+        function loadTemplateStatistics() {
+            // 获取所有模板
+            fetch('/api/workflow-templates')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const totalTemplates = data.length;
+                    const activeTemplates = data.filter(t => t.isActive).length;
+                    const inactiveTemplates = totalTemplates - activeTemplates;
+                    
+                    document.getElementById('totalTemplates').textContent = totalTemplates;
+                    document.getElementById('activeTemplates').textContent = activeTemplates;
+                    document.getElementById('inactiveTemplates').textContent = inactiveTemplates;
+                    
+                    // 统计正在使用的模板数量（有关联工单的模板）
+                    loadUsedTemplatesCount();
+                })
+                .catch(error => {
+                    console.error('Error loading template statistics:', error);
+                    document.getElementById('totalTemplates').textContent = '0';
+                    document.getElementById('activeTemplates').textContent = '0';
+                    document.getElementById('inactiveTemplates').textContent = '0';
+                    document.getElementById('usedTemplates').textContent = '0';
+                });
+        }
+
+        // 加载正在使用的模板数量
+        function loadUsedTemplatesCount() {
+            fetch('/work-orders/api')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // 统计有多少种不同的工单类型正在使用
+                    const usedTypes = [...new Set(data.map(w => w.type).filter(t => t))];
+                    document.getElementById('usedTemplates').textContent = usedTypes.length;
+                })
+                .catch(error => {
+                    console.error('Error loading used templates count:', error);
+                    document.getElementById('usedTemplates').textContent = '0';
+                });
         }
 
         // 刷新数据

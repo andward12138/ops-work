@@ -131,10 +131,10 @@
                                 <label class="form-label">适用工单类型</label>
                                 <select class="form-select" name="workOrderType">
                                     <option value="">通用</option>
-                                    <option value="OPERATION">运维工单</option>
-                                    <option value="EMERGENCY">紧急变更</option>
-                                    <option value="MAINTENANCE">例行维护</option>
-                                    <option value="INCIDENT">故障处理</option>
+                                    <option value="EMERGENCY">🚨 应急工单 - 紧急事件、安全事故</option>
+                                    <option value="INCIDENT">🐛 故障工单 - 系统故障、服务中断</option>
+                                    <option value="MAINTENANCE">🔧 维护工单 - 计划维护、系统升级</option>
+                                    <option value="REQUEST">💡 需求工单 - 功能需求、配置变更</option>
                                 </select>
                             </div>
                         </div>
@@ -151,6 +151,9 @@
                         </div>
                         <div id="stepsContainer">
                             <!-- 步骤将在这里动态添加 -->
+                        </div>
+                        <div class="text-center mt-3" id="noStepsMessage">
+                            <p class="text-muted">暂无步骤，请点击"添加步骤"按钮添加工作流步骤</p>
                         </div>
                     </form>
                 </div>
@@ -175,17 +178,131 @@
 
         // 加载模板列表
         function loadTemplates() {
-            fetch('/api/workflow-templates')
-                .then(response => response.json())
+            // 先尝试简化版本
+            fetch('/api/workflow-templates/simple')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    templates = data;
+                    console.log('获取到的简化模板数据:', data);
+                    if (data && data.length > 0 && data[0].error) {
+                        throw new Error(data[0].error);
+                    }
+                    templates = data || [];
+                    renderSimpleTemplates(templates);
+                })
+                .catch(error => {
+                    console.error('Error loading simple templates:', error);
+                    // 如果简化版本失败，尝试完整版本
+                    loadFullTemplates();
+                });
+        }
+        
+        // 加载完整模板列表
+        function loadFullTemplates() {
+            fetch('/api/workflow-templates')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('获取到的完整模板数据:', data);
+                    templates = data || [];
                     renderTemplates(templates);
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    console.error('Error loading templates:', error);
                     document.getElementById('templatesList').innerHTML = 
-                        '<div class="alert alert-danger">加载模板数据失败</div>';
+                        `<div class="alert alert-danger">
+                            <h6>加载模板数据失败</h6>
+                            <p class="mb-0">错误: ${error.message}</p>
+                            <button class="btn btn-sm btn-outline-danger mt-2" onclick="loadTemplates()">重试</button>
+                            <button class="btn btn-sm btn-outline-info mt-2" onclick="testConnection()">测试连接</button>
+                        </div>`;
                 });
+        }
+        
+        // 测试连接
+        function testConnection() {
+            fetch('/api/workflow-templates/count')
+                .then(response => response.text())
+                .then(data => {
+                    alert('连接测试结果: ' + data);
+                })
+                .catch(error => {
+                    alert('连接测试失败: ' + error.message);
+                });
+        }
+
+        // 渲染简化模板列表
+        function renderSimpleTemplates(templateList) {
+            const container = document.getElementById('templatesList');
+            const showInactive = document.getElementById('showInactiveTemplates').checked;
+            
+            console.log('渲染简化模板列表：');
+            console.log('- 显示已停用模板开关状态:', showInactive);
+            console.log('- 总模板数:', templateList.length);
+            console.log('- 模板详情:', templateList.map(t => ({ name: t.templateName, active: t.isActive })));
+            
+            const filteredTemplates = showInactive ? templateList : templateList.filter(t => t.isActive);
+            
+            console.log('- 过滤后模板数:', filteredTemplates.length);
+            
+            if (!filteredTemplates || filteredTemplates.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">暂无模板数据</div>';
+                return;
+            }
+
+            let html = '';
+            filteredTemplates.forEach(template => {
+                const statusBadge = template.isActive ? 
+                    '<span class="badge bg-success">启用</span>' : 
+                    '<span class="badge bg-secondary">停用</span>';
+                
+                html += `
+                    <div class="card template-card">
+                        <div class="card-body">
+                            <div class="row align-items-start">
+                                <div class="col-md-6">
+                                    <h6 class="card-title mb-1">
+                                        ${template.templateName} ${statusBadge}
+                                    </h6>
+                                    <p class="text-muted mb-1">${template.description || '无描述'}</p>
+                                    <small class="text-muted">
+                                        工单类型: ${template.workOrderType || '通用'}
+                                    </small>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="step-container">
+                                        <small class="text-muted">步骤数量: ${template.stepCount || 0}</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <div class="btn-group-vertical btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-info" onclick="viewTemplate(${template.id})">
+                                            <i class="bi bi-eye"></i> 查看
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning" onclick="editTemplate(${template.id})">
+                                            <i class="bi bi-pencil"></i> 编辑
+                                        </button>
+                                        <button type="button" class="btn ${template.isActive ? 'btn-outline-secondary' : 'btn-outline-success'}" 
+                                                onclick="toggleTemplate(${template.id}, ${template.isActive})">
+                                            <i class="bi ${template.isActive ? 'bi-pause' : 'bi-play'}"></i> 
+                                            ${template.isActive ? '停用' : '启用'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
         }
 
         // 渲染模板列表
@@ -286,7 +403,14 @@
 
         // 切换显示非活跃模板
         function toggleInactiveTemplates() {
-            renderTemplates(templates);
+            // 根据当前使用的渲染方式来决定调用哪个函数
+            if (templates.length > 0 && templates[0].stepCount !== undefined) {
+                // 使用简化版本渲染
+                renderSimpleTemplates(templates);
+            } else {
+                // 使用完整版本渲染
+                renderTemplates(templates);
+            }
         }
 
         // 查看模板详情
@@ -304,26 +428,32 @@
         function toggleTemplate(templateId, currentStatus) {
             const action = currentStatus ? '停用' : '启用';
             if (confirm(`确定要${action}这个模板吗？`)) {
-                const template = { isActive: !currentStatus };
+                // 使用专门的状态切换API
+                const endpoint = currentStatus ? 
+                    `/api/workflow-templates/${templateId}/disable` : 
+                    `/api/workflow-templates/${templateId}/enable`;
                 
-                fetch(`/api/workflow-templates/${templateId}`, {
-                    method: 'PUT',
+                fetch(endpoint, {
+                    method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(template)
+                    }
                 })
                 .then(response => {
+                    console.log('响应状态:', response.status);
                     if (response.ok) {
                         alert(`${action}成功`);
                         loadTemplates();
                     } else {
-                        alert(`${action}失败`);
+                        return response.text().then(text => {
+                            console.error('服务器错误响应:', text);
+                            alert(`${action}失败: HTTP ${response.status}\n${text}`);
+                        });
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    alert(`${action}失败`);
+                    console.error('请求错误:', error);
+                    alert(`${action}失败: ${error.message}`);
                 });
             }
         }
@@ -331,6 +461,12 @@
         // 添加步骤
         function addStep() {
             stepCounter++;
+            // 隐藏空提示信息
+            const noStepsMessage = document.getElementById('noStepsMessage');
+            if (noStepsMessage) {
+                noStepsMessage.style.display = 'none';
+            }
+            
             const stepHtml = `
                 <div class="card mb-3" id="step-${stepCounter}">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -400,6 +536,13 @@
         // 移除步骤
         function removeStep(stepId) {
             document.getElementById(`step-${stepId}`).remove();
+            
+            // 如果没有步骤了，显示提示信息
+            const stepElements = document.querySelectorAll('#stepsContainer .card');
+            const noStepsMessage = document.getElementById('noStepsMessage');
+            if (stepElements.length === 0 && noStepsMessage) {
+                noStepsMessage.style.display = 'block';
+            }
         }
 
         // 创建模板
@@ -407,42 +550,82 @@
             const form = document.getElementById('createTemplateForm');
             const formData = new FormData(form);
             
+            // 验证必填字段
+            const templateName = formData.get('templateName');
+            if (!templateName || templateName.trim() === '') {
+                alert('请输入模板名称');
+                return;
+            }
+            
             // 构建模板对象
             const template = {
-                templateName: formData.get('templateName'),
-                description: formData.get('description'),
+                templateName: templateName.trim(),
+                description: formData.get('description') || '',
                 workOrderType: formData.get('workOrderType') || null,
                 steps: []
             };
 
             // 收集步骤数据
             const stepElements = document.querySelectorAll('#stepsContainer .card');
-            stepElements.forEach((stepElement, index) => {
-                const stepInputs = stepElement.querySelectorAll('input, select');
-                const step = { stepOrder: index + 1 };
-                
-                stepInputs.forEach(input => {
-                    const name = input.name.match(/\[([^\]]+)\]$/)?.[1];
-                    if (name) {
-                        if (input.type === 'checkbox') {
-                            step[name] = input.checked;
-                        } else if (input.type === 'number') {
-                            step[name] = input.value ? parseInt(input.value) : null;
-                        } else {
-                            step[name] = input.value || null;
-                        }
-                    }
-                });
-                
-                if (step.stepName && step.stepType) {
-                    template.steps.push(step);
-                }
-            });
-
-            if (template.steps.length === 0) {
+            
+            if (stepElements.length === 0) {
                 alert('至少需要添加一个步骤');
                 return;
             }
+
+            let hasError = false;
+            stepElements.forEach((stepElement, index) => {
+                const step = { stepOrder: index + 1 };
+                
+                // 获取步骤名称
+                const stepNameInput = stepElement.querySelector('input[name*="[stepName]"]');
+                if (!stepNameInput || !stepNameInput.value.trim()) {
+                    alert(`步骤 ${index + 1} 的名称不能为空`);
+                    hasError = true;
+                    return;
+                }
+                step.stepName = stepNameInput.value.trim();
+                
+                // 获取步骤类型
+                const stepTypeSelect = stepElement.querySelector('select[name*="[stepType]"]');
+                if (!stepTypeSelect || !stepTypeSelect.value) {
+                    alert(`步骤 ${index + 1} 的类型不能为空`);
+                    hasError = true;
+                    return;
+                }
+                step.stepType = stepTypeSelect.value;
+                
+                // 获取处理人角色
+                const assigneeRoleSelect = stepElement.querySelector('select[name*="[assigneeRole]"]');
+                step.assigneeRole = assigneeRoleSelect ? assigneeRoleSelect.value || null : null;
+                
+                // 获取时限
+                const timeLimitInput = stepElement.querySelector('input[name*="[timeLimitHours]"]');
+                step.timeLimitHours = timeLimitInput && timeLimitInput.value ? parseInt(timeLimitInput.value) : null;
+                
+                // 获取并行组
+                const parallelGroupInput = stepElement.querySelector('input[name*="[parallelGroup]"]');
+                step.parallelGroup = parallelGroupInput && parallelGroupInput.value ? parseInt(parallelGroupInput.value) : null;
+                
+                // 获取是否可跳过
+                const isSkippableCheckbox = stepElement.querySelector('input[name*="[isSkippable]"]');
+                step.isSkippable = isSkippableCheckbox ? isSkippableCheckbox.checked : false;
+                
+                // 获取自动通过
+                const autoApproveCheckbox = stepElement.querySelector('input[name*="[autoApprove]"]');
+                step.autoApprove = autoApproveCheckbox ? autoApproveCheckbox.checked : false;
+                
+                // 设置并行标志
+                step.isParallel = step.parallelGroup ? true : false;
+                
+                template.steps.push(step);
+            });
+
+            if (hasError) {
+                return;
+            }
+
+            console.log('准备提交的模板数据:', template);
 
             // 提交模板
             fetch('/api/workflow-templates', {
@@ -453,21 +636,27 @@
                 body: JSON.stringify(template)
             })
             .then(response => {
+                console.log('服务器响应状态:', response.status);
                 if (response.ok) {
-                    bootstrap.Modal.getInstance(document.getElementById('createTemplateModal')).hide();
-                    form.reset();
-                    document.getElementById('stepsContainer').innerHTML = '';
-                    stepCounter = 0;
-                    loadTemplates();
-                    alert('模板创建成功');
+                    return response.json();
                 } else {
                     return response.text().then(text => {
-                        throw new Error(text);
+                        console.error('服务器错误响应:', text);
+                        throw new Error(`HTTP ${response.status}: ${text}`);
                     });
                 }
             })
+            .then(data => {
+                console.log('模板创建成功:', data);
+                bootstrap.Modal.getInstance(document.getElementById('createTemplateModal')).hide();
+                form.reset();
+                document.getElementById('stepsContainer').innerHTML = '';
+                stepCounter = 0;
+                loadTemplates();
+                alert('模板创建成功');
+            })
             .catch(error => {
-                console.error('Error:', error);
+                console.error('创建模板失败:', error);
                 alert('创建模板失败: ' + error.message);
             });
         }

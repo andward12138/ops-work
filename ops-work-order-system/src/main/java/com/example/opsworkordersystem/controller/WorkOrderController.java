@@ -313,4 +313,13 @@ public class WorkOrderController {
     public List<WorkOrder> getWorkOrdersByCreator(@PathVariable Integer createdById) {
         return workOrderService.getWorkOrdersByCreator(createdById);
     }
+
+    /**
+     * 获取所有工单 - 用于统计
+     */
+    @GetMapping("/api")
+    @ResponseBody
+    public List<WorkOrder> getAllWorkOrders() {
+        return workOrderService.getAllWorkOrders();
+    }
 }

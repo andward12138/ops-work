@@ -1,5 +1,6 @@
 package com.example.opsworkordersystem.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -25,8 +26,9 @@ public class WorkflowTemplate {
     @Column(name = "is_active")
     private Boolean isActive = true; // 是否激活
 
-    @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @OrderBy("stepOrder ASC")
+    @JsonManagedReference
     private List<WorkflowTemplateStep> steps = new ArrayList<>(); // 模板步骤
 
     @Column(name = "created_at")
