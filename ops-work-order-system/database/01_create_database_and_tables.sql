@@ -48,7 +48,7 @@ CREATE TABLE `departments` (
     INDEX `idx_departments_type_active` (`type`, `is_active`) USING BTREE,
     INDEX `idx_departments_level` (`level`) USING BTREE,
     CONSTRAINT `FK63q917a0aq92i7gcw6h7f1jrv` FOREIGN KEY (`parent_id`) REFERENCES `departments` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 21 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '部门表';
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '部门表';
 
 -- 用户表
 DROP TABLE IF EXISTS `users`;
@@ -68,7 +68,7 @@ CREATE TABLE `users` (
     INDEX `idx_users_role` (`role`) USING BTREE,
     INDEX `idx_users_email` (`email`) USING BTREE,
     CONSTRAINT `FKsbg59w8q63i0oo53rlgvlcnjq` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 21 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '用户表';
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '用户表';
 
 -- 部门联系人表
 DROP TABLE IF EXISTS `department_contacts`;
@@ -128,7 +128,7 @@ CREATE TABLE `work_orders` (
     `description` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '工单描述',
     `title` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '工单标题',
     `priority` ENUM('HIGH','LOW','MEDIUM') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '优先级',
-    `status` ENUM('APPROVED','COMPLETED','IN_PROGRESS','OVERDUE','PENDING') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '状态',
+    `status` ENUM('APPROVED','COMPLETED','IN_PROGRESS','OVERDUE','PENDING','REJECTED') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '状态',
     `deadline` DATETIME(6) NULL DEFAULT NULL COMMENT '截止时间',
     `is_overdue` BIT(1) NULL DEFAULT NULL COMMENT '是否超期',
     `type` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '工单类型',
@@ -143,7 +143,7 @@ CREATE TABLE `work_orders` (
     INDEX `idx_work_orders_department` (`department`) USING BTREE,
     CONSTRAINT `FKm24kvbbs7q2qem1v1sk8opca0` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT `FKpjx6go2keqx7y8idesxp1kvsd` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 26 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '工单表';
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '工单表';
 
 -- ====================================================
 -- 工作流管理相关表
@@ -162,7 +162,7 @@ CREATE TABLE `workflow_templates` (
     PRIMARY KEY (`id`) USING BTREE,
     UNIQUE INDEX `UK6ohawur72g565ytlvbqt9111a` (`template_name`) USING BTREE,
     INDEX `idx_workflow_templates_type_active` (`work_order_type`, `is_active`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '工作流模板表';
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '工作流模板表';
 
 -- 工作流模板步骤表
 DROP TABLE IF EXISTS `workflow_template_steps`;
@@ -185,7 +185,7 @@ CREATE TABLE `workflow_template_steps` (
     INDEX `idx_workflow_template_steps_dept_type` (`assignee_department_id`, `step_type`) USING BTREE,
     CONSTRAINT `FKbpnw31s5h98f2i5ri92pkvtbt` FOREIGN KEY (`assignee_department_id`) REFERENCES `departments` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT `FKhko2gh77u9nvf62xglbdfeu7d` FOREIGN KEY (`template_id`) REFERENCES `workflow_templates` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '工作流模板步骤表';
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '工作流模板步骤表';
 
 -- 工作流步骤表
 DROP TABLE IF EXISTS `workflow_steps`;
@@ -237,7 +237,7 @@ CREATE TABLE `approval_records` (
     INDEX `idx_approval_records_status_created_at` (`status`, `created_at`) USING BTREE,
     CONSTRAINT `FK7o4xnr38kq9mgomjjnqi8358u` FOREIGN KEY (`work_order_id`) REFERENCES `work_orders` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT `FKpiegtiv1mkj4am4ipxx3d2iqp` FOREIGN KEY (`approver_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '审批记录表';
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '审批记录表';
 
 -- 操作记录表
 DROP TABLE IF EXISTS `operation_records`;
@@ -254,7 +254,7 @@ CREATE TABLE `operation_records` (
     INDEX `idx_operation_records_action_created_at` (`action`, `created_at`) USING BTREE,
     CONSTRAINT `FK2a953ucfoddmv1otak600kj9s` FOREIGN KEY (`work_order_id`) REFERENCES `work_orders` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT `FK9qqfdmgem5fpl6dm51uwk3wnt` FOREIGN KEY (`operator_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '操作记录表';
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '操作记录表';
 
 -- 转派记录表
 DROP TABLE IF EXISTS `transfer_records`;
@@ -288,7 +288,7 @@ CREATE TABLE `transfer_records` (
     INDEX `idx_transfer_records_accepted_by` (`accepted_by`) USING BTREE,
     CONSTRAINT `FKnbdhv5e237uf38h497tuemn0f` FOREIGN KEY (`from_department_id`) REFERENCES `departments` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT `FKr1cjo15dxu65y2a1udwy8ukla` FOREIGN KEY (`to_department_id`) REFERENCES `departments` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '转派记录表';
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic COMMENT = '转派记录表';
 
 -- 设备令牌表（用于推送通知）
 DROP TABLE IF EXISTS `device_tokens`;
